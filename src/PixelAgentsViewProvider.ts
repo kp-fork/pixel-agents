@@ -3,6 +3,8 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { AgentState } from './types.js';
+import type { WebviewToExtensionMessage } from './contracts/messages.js';
+import { postToWebview } from './contracts/postMessage.js';
 import {
 	launchNewTerminal,
 	removeAgent,
@@ -61,7 +63,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.options = { enableScripts: true };
 		webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
 
-		webviewView.webview.onDidReceiveMessage(async (message) => {
+		webviewView.webview.onDidReceiveMessage(async (message: WebviewToExtensionMessage) => {
 			if (message.type === 'openClaude') {
 				launchNewTerminal(
 					this.nextAgentId, this.nextTerminalIndex,
@@ -100,7 +102,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				);
 				// Send persisted settings to webview
 				const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
-				this.webview?.postMessage({ type: 'settingsLoaded', soundEnabled });
+				postToWebview(this.webview, { type: 'settingsLoaded', soundEnabled });
 
 				// Ensure project scan runs even with no restored agents (to adopt external terminals)
 				const projectDir = getProjectDirPath();
@@ -219,6 +221,17 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				if (projectDir && fs.existsSync(projectDir)) {
 					vscode.env.openExternal(vscode.Uri.file(projectDir));
 				}
+			} else if (message.type === 'openExternal') {
+				const target = (message.target || '').trim();
+				if (!target) return;
+				if (/^https?:\/\//i.test(target)) {
+					vscode.env.openExternal(vscode.Uri.parse(target));
+					return;
+				}
+				const resolvedPath = path.isAbsolute(target)
+					? target
+					: path.resolve(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd(), target);
+				vscode.env.openExternal(vscode.Uri.file(resolvedPath));
 			} else if (message.type === 'exportLayout') {
 				const layout = readLayoutFromFile();
 				if (!layout) {
@@ -248,7 +261,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					}
 					this.layoutWatcher?.markOwnWrite();
 					writeLayoutToFile(imported);
-					this.webview?.postMessage({ type: 'layoutLoaded', layout: imported });
+					postToWebview(this.webview, { type: 'layoutLoaded', layout: imported });
 					vscode.window.showInformationMessage('Pixel Agents: Layout imported successfully.');
 				} catch {
 					vscode.window.showErrorMessage('Pixel Agents: Failed to read or parse layout file.');
@@ -262,7 +275,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			for (const [id, agent] of this.agents) {
 				if (agent.terminalRef === terminal) {
 					this.activeAgentId.current = id;
-					webviewView.webview.postMessage({ type: 'agentSelected', id });
+					postToWebview(webviewView.webview, { type: 'agentSelected', id });
 					break;
 				}
 			}
@@ -279,7 +292,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 						this.jsonlPollTimers, this.persistAgents,
 					);
-					webviewView.webview.postMessage({ type: 'agentClosed', id });
+					postToWebview(webviewView.webview, { type: 'agentClosed', id });
 				}
 			}
 		});
@@ -307,7 +320,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		if (this.layoutWatcher) return;
 		this.layoutWatcher = watchLayoutFile((layout) => {
 			console.log('[Pixel Agents] External layout change — pushing to webview');
-			this.webview?.postMessage({ type: 'layoutLoaded', layout });
+			postToWebview(this.webview, { type: 'layoutLoaded', layout });
 		});
 	}
 
