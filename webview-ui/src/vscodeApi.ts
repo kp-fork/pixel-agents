@@ -1,3 +1,9 @@
-declare function acquireVsCodeApi(): { postMessage(msg: unknown): void }
+import { createDefaultHostBridge } from './adapter/vscodeBridge.js'
 
-export const vscode = acquireVsCodeApi()
+export const hostBridge = createDefaultHostBridge()
+
+export const vscode = {
+  postMessage(message: unknown): void {
+    hostBridge.send(message)
+  },
+}

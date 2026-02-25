@@ -19,5 +19,16 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      'no-restricted-imports': ['error', {
+        paths: [
+          {
+            name: 'vscode',
+            message: 'Webview/view layer must not import VS Code APIs directly. Use adapter bridge modules.',
+          },
+        ],
+        patterns: ['../src/*', '../../src/*', '../../../src/*', '../../../../src/*'],
+      }],
+    },
   },
 ])

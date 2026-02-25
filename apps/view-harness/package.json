@@ -1,0 +1,16 @@
+{
+  "name": "@pixel-agents/view-harness",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "check-types": "tsc --project tsconfig.json --noEmit",
+    "build": "tsc --project tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.12",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
