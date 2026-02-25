@@ -1,0 +1,71 @@
+# 20260224 Electrobun Desktop Host
+
+## Scope
+- VS Code extension을 유지하면서 Electrobun 기반 desktop host를 병행 지원한다.
+
+## Strategy
+- 전환(replace) 대신 병행(additive) 접근을 사용한다.
+- view는 host-agnostic view-model만 소비한다.
+- host별 책임은 adapter/bridge 레이어에서 격리한다.
+
+## Risks
+- VS Code 전용 기능(터미널 제어/포커스/패널 수명주기) 의존도가 높아 desktop host에서 동일 UX 재현이 어려울 수 있다.
+- bridge 계약이 약하면 host별 분기 코드가 다시 view로 침투할 수 있다.
+
+## PR Plan
+
+### PR12 - HostBridge 표준 인터페이스 확정
+- 목표: VS Code와 Electrobun이 동일 application/view-model 계약을 사용하도록 bridge 인터페이스를 고정
+- 상태: done (`src/application/ports/hostBridge.ts` + webview adapter HostBridge 확장)
+- 코드 범위(예시):
+  - `src/application/ports/hostBridge.ts`
+  - `webview-ui/src/adapter/hostBridge.ts`
+- 코드 스케치:
+
+```ts
+export interface HostBridge {
+  send(message: unknown): void
+  onMessage(handler: (message: unknown) => void): () => void
+  openExternal?(urlOrPath: string): Promise<void>
+}
+```
+
+### PR13 - Electrobun 최소 호스트 프로토타입
+- 목표: layout 렌더링 + 메시지 왕복 + mock agent 이벤트까지 동작하는 desktop 프로토타입 구축
+- 상태: done (`apps/desktop-electrobun` 프로토타입 스캐폴드 추가)
+- 코드 범위(예시):
+  - `apps/desktop-electrobun/main.ts`
+  - `apps/desktop-electrobun/bridge.ts`
+- 코드 스케치:
+
+```ts
+const bridge = createElectrobunBridge()
+const app = createPixelAgentsApp({ bridge })
+
+bridge.onMessage((msg) => {
+  app.handleHostMessage(msg)
+})
+```
+
+### PR14 - VS Code / Electrobun 듀얼 타겟 실행 플로우
+- 목표: 동일 코드베이스에서 host 선택 실행 및 기본 검증 시나리오 정착
+- 상태: done (root scripts + README dual-host section 반영)
+- 코드 범위(예시):
+  - `package.json` scripts
+  - `README.md` 개발 섹션
+  - `docs/plans/working/...` 테스트 체크리스트
+- 코드 스케치:
+
+```json
+{
+  "scripts": {
+    "dev:vscode": "npm run watch",
+    "dev:desktop": "electrobun run apps/desktop-electrobun/main.ts"
+  }
+}
+```
+
+## Done Criteria
+- VS Code host 경로 회귀 없음
+- Electrobun host에서 최소 시나리오(레이아웃 렌더, 메시지 수신, mock 이벤트 반영) 통과
+- host 분기 코드가 view 레이어로 유입되지 않음
