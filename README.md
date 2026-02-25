@@ -45,6 +45,21 @@ npm run build
 
 Then press **F5** in VS Code to launch the Extension Development Host.
 
+### Dual-host development (experimental)
+
+You can run the VS Code extension path and the standalone host prototypes independently:
+
+```bash
+# VS Code extension dev loop
+npm run dev:vscode
+
+# Desktop prototype host (Electrobun scaffold)
+npm run dev:desktop
+
+# View harness host (console renderer)
+npm run dev:harness
+```
+
 ### Usage
 
 1. Open the **Pixel Agents** panel (it appears in the bottom panel area alongside your terminal)

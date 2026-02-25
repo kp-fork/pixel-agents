@@ -1,0 +1,17 @@
+{
+  "name": "@pixel-agents/desktop-electrobun",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "start:electrobun": "electrobun run src/main.ts",
+    "check-types": "tsc --project tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.12",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
+
