@@ -93,6 +93,18 @@ npm run dev:desktop
 npm run dev:harness
 ```
 
+### Runtime verification helpers
+
+Use these scripts to validate JSONL parsing behavior from local Claude sessions:
+
+```bash
+# Single latest JSONL in the current workspace's Claude project dir
+npm run test:flow
+
+# Latest 5 JSONL files (customizable with --limit N)
+npm run test:flow:batch
+```
+
 ### Usage
 
 1. Open the **Pixel Agents** panel (it appears in the bottom panel area alongside your terminal)

@@ -81,6 +81,7 @@
     "check-types:view-harness": "tsc --noEmit --project apps/view-harness/tsconfig.json",
     "test:routing": "tsx scripts/test-jsonl-routing.ts",
     "test:flow": "tsx scripts/verify-agent-flow.ts",
+    "test:flow:batch": "tsx scripts/verify-agent-flow-batch.ts --limit 5",
     "test:runtime": "npm-run-all test:routing test:flow",
     "lint": "eslint src",
     "import-tileset": "tsx scripts/import-tileset-cli.ts"
