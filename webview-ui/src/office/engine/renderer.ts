@@ -6,6 +6,7 @@ import { getCharacterSprite } from './characters.js'
 import { renderMatrixEffect } from './matrixEffect.js'
 import { getColorizedFloorSprite, hasFloorSprites, WALL_COLOR } from '../floorTiles.js'
 import { hasWallSprites, getWallInstances, wallColorToHex } from '../wallTiles.js'
+import { isSpeechBubblesEnabled } from '../../speechBubbles.js'
 import {
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_Z_SORT_OFFSET,
@@ -454,6 +455,8 @@ export function renderBubbles(
   offsetY: number,
   zoom: number,
 ): void {
+  if (!isSpeechBubblesEnabled()) return
+
   for (const ch of characters) {
     if (!ch.bubbleType) continue
 

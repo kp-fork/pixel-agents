@@ -9,6 +9,7 @@ import { setWallSprites } from '../office/wallTiles.js'
 import { setCharacterTemplates } from '../office/sprites/spriteData.js'
 import { vscode } from '../vscodeApi.js'
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js'
+import { setSpeechBubblesEnabled } from '../speechBubbles.js'
 
 export interface SubagentCharacter {
   id: number
@@ -329,7 +330,9 @@ export function useExtensionMessages(
         setWallSprites(sprites)
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean
+        const speechBubblesOn = typeof msg.speechBubblesEnabled === 'boolean' ? msg.speechBubblesEnabled : true
         setSoundEnabled(soundOn)
+        setSpeechBubblesEnabled(speechBubblesOn)
       } else if (msg.type === 'furnitureAssetsLoaded') {
         try {
           const catalog = msg.catalog as FurnitureAsset[]

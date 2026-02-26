@@ -4,6 +4,7 @@ import type { OfficeState } from '../engine/officeState.js'
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js'
 import { TILE_SIZE, CharacterState } from '../types.js'
 import { TOOL_OVERLAY_VERTICAL_OFFSET, CHARACTER_SITTING_OFFSET_PX } from '../../constants.js'
+import { isSpeechBubblesEnabled } from '../../speechBubbles.js'
 
 interface ToolOverlayProps {
   officeState: OfficeState
@@ -50,6 +51,8 @@ export function ToolOverlay({
   panRef,
   onCloseAgent,
 }: ToolOverlayProps) {
+  const showBubbles = isSpeechBubblesEnabled()
+
   const [, setTick] = useState(0)
   useEffect(() => {
     let rafId = 0
@@ -74,10 +77,10 @@ export function ToolOverlay({
   const deviceOffsetY = Math.floor((canvasH - mapH) / 2) + Math.round(panRef.current.y)
 
   const selectedId = officeState.selectedAgentId
-  const hoveredId = officeState.hoveredAgentId
-
   // All character IDs
   const allIds = [...agents, ...subagentCharacters.map((s) => s.id)]
+
+  if (!showBubbles) return null
 
   return (
     <>
@@ -86,11 +89,7 @@ export function ToolOverlay({
         if (!ch) return null
 
         const isSelected = selectedId === id
-        const isHovered = hoveredId === id
         const isSub = ch.isSubagent
-
-        // Only show for hovered or selected agents
-        if (!isSelected && !isHovered) return null
 
         // Position above character
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0

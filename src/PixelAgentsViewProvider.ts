@@ -16,7 +16,7 @@ import {
 } from './agentManager.js';
 import { ensureProjectScan } from './fileWatcher.js';
 import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
-import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED } from './constants.js';
+import { WORKSPACE_KEY_AGENT_SEATS, GLOBAL_KEY_SOUND_ENABLED, GLOBAL_KEY_SPEECH_BUBBLES_ENABLED } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 
@@ -75,6 +75,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			} else if (message.type === 'focusAgent') {
 				const agent = this.agents.get(message.id);
 				if (agent) {
+					this.activeAgentId.current = message.id;
 					agent.terminalRef.show();
 				}
 			} else if (message.type === 'closeAgent') {
@@ -91,6 +92,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				writeLayoutToFile(message.layout as Record<string, unknown>);
 			} else if (message.type === 'setSoundEnabled') {
 				this.context.globalState.update(GLOBAL_KEY_SOUND_ENABLED, message.enabled);
+			} else if (message.type === 'setSpeechBubblesEnabled') {
+				this.context.globalState.update(GLOBAL_KEY_SPEECH_BUBBLES_ENABLED, message.enabled);
 			} else if (message.type === 'webviewReady') {
 				restoreAgents(
 					this.context,
@@ -102,7 +105,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				);
 				// Send persisted settings to webview
 				const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
-				postToWebview(this.webview, { type: 'settingsLoaded', soundEnabled });
+				const speechBubblesEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SPEECH_BUBBLES_ENABLED, true);
+				postToWebview(this.webview, { type: 'settingsLoaded', soundEnabled, speechBubblesEnabled });
 
 				// Ensure project scan runs even with no restored agents (to adopt external terminals)
 				const projectDir = getProjectDirPath();
@@ -217,9 +221,20 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				}
 				sendExistingAgents(this.agents, this.context, this.webview);
 			} else if (message.type === 'openSessionsFolder') {
-				const projectDir = getProjectDirPath();
+				const liveAgentDir = Array.from(this.agents.values())
+					.map((agent) => agent.projectDir)
+					.find((dir) => !!dir && fs.existsSync(dir));
+				const projectDir = liveAgentDir || getProjectDirPath();
 				if (projectDir && fs.existsSync(projectDir)) {
 					vscode.env.openExternal(vscode.Uri.file(projectDir));
+				} else {
+					const projectsRoot = path.join(os.homedir(), '.claude', 'projects');
+					if (fs.existsSync(projectsRoot)) {
+						vscode.window.showWarningMessage('Pixel Agents: Could not resolve this workspace session folder. Opening ~/.claude/projects instead.');
+						vscode.env.openExternal(vscode.Uri.file(projectsRoot));
+					} else {
+						vscode.window.showWarningMessage('Pixel Agents: Session folder not found.');
+					}
 				}
 			} else if (message.type === 'openExternal') {
 				const target = (message.target || '').trim();

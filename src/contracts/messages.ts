@@ -47,6 +47,7 @@ export type WebviewToExtensionMessage =
 	| { type: 'saveAgentSeats'; seats: Record<number, AgentSeatAssignment> }
 	| { type: 'saveLayout'; layout: Record<string, unknown> }
 	| { type: 'setSoundEnabled'; enabled: boolean }
+	| { type: 'setSpeechBubblesEnabled'; enabled: boolean }
 	| { type: 'webviewReady' }
 	| { type: 'openSessionsFolder' }
 	| { type: 'openExternal'; target: string }
@@ -73,5 +74,5 @@ export type ExtensionToWebviewMessage =
 	| { type: 'floorTilesLoaded'; sprites: string[][][] }
 	| { type: 'wallTilesLoaded'; sprites: string[][][] }
 	| { type: 'furnitureAssetsLoaded'; catalog: FurnitureCatalogAsset[]; sprites: Record<string, string[][]> }
-	| { type: 'settingsLoaded'; soundEnabled: boolean }
+	| { type: 'settingsLoaded'; soundEnabled: boolean; speechBubblesEnabled: boolean }
 	| { type: 'trackingEvent'; event: TrackingEvent };

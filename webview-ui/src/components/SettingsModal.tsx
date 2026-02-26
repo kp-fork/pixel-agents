@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { vscode } from '../vscodeApi.js'
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js'
+import { isSpeechBubblesEnabled, setSpeechBubblesEnabled } from '../speechBubbles.js'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -27,6 +28,13 @@ const menuItemBase: React.CSSProperties = {
 export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled)
+  const [speechBubblesLocal, setSpeechBubblesLocal] = useState(isSpeechBubblesEnabled)
+
+  useEffect(() => {
+    if (!isOpen) return
+    setSoundLocal(isSoundEnabled())
+    setSpeechBubblesLocal(isSpeechBubblesEnabled())
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -166,6 +174,40 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
             }}
           >
             {soundLocal ? 'X' : ''}
+          </span>
+        </button>
+        <button
+          onClick={() => {
+            const newVal = !isSpeechBubblesEnabled()
+            setSpeechBubblesEnabled(newVal)
+            setSpeechBubblesLocal(newVal)
+            vscode.postMessage({ type: 'setSpeechBubblesEnabled', enabled: newVal })
+          }}
+          onMouseEnter={() => setHovered('speech')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...menuItemBase,
+            background: hovered === 'speech' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          }}
+        >
+          <span>Always status bubbles on</span>
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              border: '2px solid rgba(255, 255, 255, 0.5)',
+              borderRadius: 0,
+              background: speechBubblesLocal ? 'rgba(90, 140, 255, 0.8)' : 'transparent',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              lineHeight: 1,
+              color: '#fff',
+            }}
+          >
+            {speechBubblesLocal ? 'X' : ''}
           </span>
         </button>
         <button
