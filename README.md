@@ -17,6 +17,7 @@ This is the source code for the free [Pixel Agents extension for VS Code](https:
 - **Speech bubbles** — visual indicators when an agent is waiting for input or needs permission
 - **Sound notifications** — optional chime when an agent finishes its turn
 - **Sub-agent visualization** — Task tool sub-agents spawn as separate characters linked to their parent
+- **Recent session previews** — optionally show last N-day local session transcripts as read-only history characters
 - **Persistent layouts** — your office design is saved and shared across VS Code windows
 - **Diverse characters** — 6 diverse characters.
 
@@ -104,6 +105,11 @@ npm run test:flow
 # Latest 5 JSONL files (customizable with --limit N)
 npm run test:flow:batch
 ```
+
+History session preview behavior can be configured in VS Code settings:
+- `pixel-agents.historySessions.enabled`
+- `pixel-agents.historySessions.lookbackDays`
+- `pixel-agents.historySessions.maxVisible`
 
 ### Usage
 

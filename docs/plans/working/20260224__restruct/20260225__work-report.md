@@ -24,7 +24,7 @@
 
 ## Notes
 - 기존 lockfile 변경(`package-lock.json`, `webview-ui/package-lock.json`)은 초기 설치 단계에서 발생한 변경이며 본 PR 설계 변경과 직접 관련 없음.
-- 상세 계획 상태는 `docs/plans/draft/20260224__restruct.md` 및 `docs/plans/working/20260224__restruct/*.md`에 반영됨.
+- 상세 계획 상태는 `docs/plans/working/20260224__restruct.md` 및 `docs/plans/working/20260224__restruct/*.md`에 반영됨.
 
 ## Follow-up Cycle (Review Fixes)
 

@@ -82,7 +82,9 @@ export function collectHistorySessions(
 			continue;
 		}
 
-		const createdAtMs = stat.birthtimeMs > 0 ? stat.birthtimeMs : stat.mtimeMs;
+		const createdAtMs = stat.birthtimeMs > 0
+			? Math.min(stat.birthtimeMs, stat.mtimeMs)
+			: stat.mtimeMs;
 		if (!Number.isFinite(createdAtMs) || createdAtMs < thresholdMs) continue;
 
 		records.push({

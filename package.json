@@ -102,9 +102,10 @@
     "test:team-tracking": "tsx scripts/test-team-tracking.ts",
     "test:overlay-state": "tsx scripts/test-tool-overlay-state.ts",
     "test:bubble-settings": "tsx scripts/test-bubble-settings.ts",
+    "test:history-sessions": "tsx scripts/test-history-sessions.ts",
     "test:flow": "tsx scripts/verify-agent-flow.ts",
     "test:flow:batch": "tsx scripts/verify-agent-flow-batch.ts --limit 5",
-    "test:runtime": "npm-run-all test:routing test:team-tracking test:overlay-state test:bubble-settings test:flow",
+    "test:runtime": "npm-run-all test:routing test:team-tracking test:overlay-state test:bubble-settings test:history-sessions test:flow",
     "lint": "eslint src",
     "import-tileset": "tsx scripts/import-tileset-cli.ts"
   },
