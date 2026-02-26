@@ -10,6 +10,7 @@ interface ToolOverlayProps {
   officeState: OfficeState
   agents: number[]
   agentTools: Record<number, ToolActivity[]>
+  subagentTools: Record<number, Record<string, ToolActivity[]>>
   subagentCharacters: SubagentCharacter[]
   containerRef: React.RefObject<HTMLDivElement | null>
   zoom: number
@@ -45,6 +46,7 @@ export function ToolOverlay({
   officeState,
   agents,
   agentTools,
+  subagentTools,
   subagentCharacters,
   containerRef,
   zoom,
@@ -91,6 +93,12 @@ export function ToolOverlay({
         const isSelected = selectedId === id
         const isSub = ch.isSubagent
 
+        const subToolGroups = !isSub ? subagentTools[id] : undefined
+        const subToolLists = subToolGroups ? Object.values(subToolGroups) : []
+        const subTotal = subToolLists.reduce((count, list) => count + list.length, 0)
+        const subActive = subToolLists.reduce((count, list) => count + list.filter((t) => !t.done).length, 0)
+        const subHasPermissionWait = subToolLists.some((list) => list.some((t) => t.permissionWait && !t.done))
+
         // Position above character
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0
         const screenX = (deviceOffsetX + ch.x * zoom) / dpr
@@ -106,14 +114,18 @@ export function ToolOverlay({
             const sub = subagentCharacters.find((s) => s.id === id)
             activityText = sub ? sub.label : 'Subtask'
           }
+        } else if (subTotal > 0) {
+          activityText = subActive > 0
+            ? `Coordinating ${subActive}/${subTotal}`
+            : `Subtasks complete (${subTotal})`
         } else {
           activityText = getActivityText(id, agentTools, ch.isActive)
         }
 
         // Determine dot color
         const tools = agentTools[id]
-        const hasPermission = subHasPermission || tools?.some((t) => t.permissionWait && !t.done)
-        const hasActiveTools = tools?.some((t) => !t.done)
+        const hasPermission = subHasPermission || subHasPermissionWait || tools?.some((t) => t.permissionWait && !t.done)
+        const hasActiveTools = subActive > 0 || tools?.some((t) => !t.done)
         const isActive = ch.isActive
 
         let dotColor: string | null = null
