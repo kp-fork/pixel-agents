@@ -5,6 +5,7 @@ import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js'
 import { TILE_SIZE, CharacterState } from '../types.js'
 import { TOOL_OVERLAY_VERTICAL_OFFSET, CHARACTER_SITTING_OFFSET_PX } from '../../constants.js'
 import { isSpeechBubblesEnabled } from '../../speechBubbles.js'
+import { deriveOverlayState } from './toolOverlayState.js'
 
 interface ToolOverlayProps {
   officeState: OfficeState
@@ -16,30 +17,6 @@ interface ToolOverlayProps {
   zoom: number
   panRef: React.RefObject<{ x: number; y: number }>
   onCloseAgent: (id: number) => void
-}
-
-/** Derive a short human-readable activity string from tools/status */
-function getActivityText(
-  agentId: number,
-  agentTools: Record<number, ToolActivity[]>,
-  isActive: boolean,
-): string {
-  const tools = agentTools[agentId]
-  if (tools && tools.length > 0) {
-    // Find the latest non-done tool
-    const activeTool = [...tools].reverse().find((t) => !t.done)
-    if (activeTool) {
-      if (activeTool.permissionWait) return 'Needs approval'
-      return activeTool.status
-    }
-    // All tools done but agent still active (mid-turn) — keep showing last tool status
-    if (isActive) {
-      const lastTool = tools[tools.length - 1]
-      if (lastTool) return lastTool.status
-    }
-  }
-
-  return 'Idle'
 }
 
 export function ToolOverlay({
@@ -94,44 +71,26 @@ export function ToolOverlay({
         const isSub = ch.isSubagent
 
         const subToolGroups = !isSub ? subagentTools[id] : undefined
-        const subToolLists = subToolGroups ? Object.values(subToolGroups) : []
-        const subTotal = subToolLists.reduce((count, list) => count + list.length, 0)
-        const subActive = subToolLists.reduce((count, list) => count + list.filter((t) => !t.done).length, 0)
-        const subHasPermissionWait = subToolLists.some((list) => list.some((t) => t.permissionWait && !t.done))
 
         // Position above character
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0
         const screenX = (deviceOffsetX + ch.x * zoom) / dpr
         const screenY = (deviceOffsetY + (ch.y + sittingOffset - TOOL_OVERLAY_VERTICAL_OFFSET) * zoom) / dpr
 
-        // Get activity text
-        const subHasPermission = isSub && ch.bubbleType === 'permission'
-        let activityText: string
-        if (isSub) {
-          if (subHasPermission) {
-            activityText = 'Needs approval'
-          } else {
-            const sub = subagentCharacters.find((s) => s.id === id)
-            activityText = sub ? sub.label : 'Subtask'
-          }
-        } else if (subTotal > 0) {
-          activityText = subActive > 0
-            ? `Coordinating ${subActive}/${subTotal}`
-            : `Subtasks complete (${subTotal})`
-        } else {
-          activityText = getActivityText(id, agentTools, ch.isActive)
-        }
-
-        // Determine dot color
-        const tools = agentTools[id]
-        const hasPermission = subHasPermission || subHasPermissionWait || tools?.some((t) => t.permissionWait && !t.done)
-        const hasActiveTools = subActive > 0 || tools?.some((t) => !t.done)
-        const isActive = ch.isActive
+        const sub = isSub ? subagentCharacters.find((s) => s.id === id) : undefined
+        const overlayState = deriveOverlayState({
+          isSubagent: isSub,
+          isActive: ch.isActive,
+          bubbleType: ch.bubbleType,
+          tools: agentTools[id],
+          subToolGroups,
+          subLabel: sub?.label,
+        })
 
         let dotColor: string | null = null
-        if (hasPermission) {
+        if (overlayState.hasPermission) {
           dotColor = 'var(--pixel-status-permission)'
-        } else if (isActive && hasActiveTools) {
+        } else if (ch.isActive && overlayState.hasActiveTools) {
           dotColor = 'var(--pixel-status-active)'
         }
 
@@ -168,7 +127,7 @@ export function ToolOverlay({
             >
               {dotColor && (
                 <span
-                  className={isActive && !hasPermission ? 'pixel-agents-pulse' : undefined}
+                  className={ch.isActive && !overlayState.hasPermission ? 'pixel-agents-pulse' : undefined}
                   style={{
                     width: 6,
                     height: 6,
@@ -178,7 +137,7 @@ export function ToolOverlay({
                   }}
                 />
               )}
-              <span
+                <span
                 style={{
                   fontSize: isSub ? '20px' : '22px',
                   fontStyle: isSub ? 'italic' : undefined,
@@ -186,9 +145,9 @@ export function ToolOverlay({
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                 }}
-              >
-                {activityText}
-              </span>
+                >
+                  {overlayState.activityText}
+                </span>
               {isSelected && !isSub && (
                 <button
                   onClick={(e) => {

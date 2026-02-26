@@ -14,7 +14,7 @@
 
 ### PR20 - Orchestration 상태 표현 우선순위/완료표현 정리
 - 목표: Team*/Task 흐름에서 `Idle` 과다 노출을 줄이고 진행/완료 상태 문구를 일관화한다.
-- 상태: pending
+- 상태: done
 - 핵심 작업:
   - overlay 상태 계산 로직 분리 및 우선순위 정리
   - 활성 상태지만 도구 이벤트가 없는 구간 표현 개선
@@ -59,10 +59,21 @@
 
 ### PR20
 - Review:
+  - 기존 오버레이는 상태 계산이 컴포넌트 내부 분기문에 섞여 있어 우선순위가 명확하지 않았고, 활성 상태에서 도구 이벤트가 늦게 오면 `Idle`이 쉽게 노출됐다.
 - Improvement:
+  - `webview-ui/src/office/components/toolOverlayState.ts` 추가:
+    - 오버레이 텍스트/점 상태 계산을 순수 함수로 분리.
+    - 우선순위 정리: `Needs approval > Coordinating > tool status > Working > Idle`.
+    - subtask 진행 문구를 `Coordinating done/total` 형태로 통일.
+  - `ToolOverlay.tsx`는 계산 결과를 소비만 하도록 단순화.
+  - 활성인데 도구가 비어있는 구간은 `Working`으로 표시되도록 개선.
 - Validation:
+  - `npm run build:webview` 통과
+  - `npm run test:flow:batch` 통과
 - Validation Reflection:
+  - UI 표현 로직을 pure function으로 분리해 PR22에서 단위 테스트를 직접 붙일 수 있는 형태가 되었다.
 - Summary:
+  - PR20 완료. Team/Task orchestration 상태 표현 우선순위와 진행 문구를 정리하고 `Idle` 과다 노출을 완화했다.
 
 ### PR21
 - Review:
