@@ -29,7 +29,7 @@
 
 ### PR22 - 최소 회귀 테스트(Team/Overlay/Toggle) 추가
 - 목표: Team 추적/상태표현/토글 경로에 대해 빠른 회귀 검증을 추가한다.
-- 상태: pending
+- 상태: done
 - 핵심 작업:
   - parser Team 경로 단위 테스트
   - overlay 상태 계산/토글 기본 동작 테스트
@@ -100,7 +100,20 @@
 
 ### PR22
 - Review:
+  - PR19~PR21 반영 후 핵심 경로를 빠르게 확인할 고정 회귀 테스트가 부족했다.
 - Improvement:
+  - 테스트 스크립트 추가:
+    - `scripts/test-team-tracking.ts`: Team* parent/subagent start/done/clear 이벤트 검증
+    - `scripts/test-tool-overlay-state.ts`: overlay 우선순위/문구 계산 검증
+    - `scripts/test-bubble-settings.ts`: always/event 토글 분리 및 legacy alias 동작 검증
+  - `package.json` 테스트 엔트리 확장:
+    - `test:team-tracking`, `test:overlay-state`, `test:bubble-settings`
+    - `test:runtime`에 신규 테스트를 포함해 통합 실행 경로 구성
 - Validation:
+  - `npm run test:runtime` 통과
+  - `npm run check-types` 통과
+  - `npm run build:webview` 통과
 - Validation Reflection:
+  - Team tracking/overlay/toggle 핵심 회귀를 VS Code 런타임 없이도 빠르게 재현 가능한 최소 안전망이 확보됐다.
 - Summary:
+  - PR22 완료. Team/Overlay/Toggle 핵심 경로에 대한 최소 회귀 테스트 세트를 추가했다.
