@@ -18,8 +18,25 @@ import { postToWebview } from './contracts/postMessage.js';
 
 export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'AskUserQuestion']);
 
+function isTeamTool(toolName: string): boolean {
+	return toolName.startsWith('Team');
+}
+
+function isOrchestrationTool(toolName: string | undefined): boolean {
+	if (!toolName) return false;
+	return toolName === 'Task' || isTeamTool(toolName);
+}
+
+function isPermissionExemptTool(toolName: string): boolean {
+	return PERMISSION_EXEMPT_TOOLS.has(toolName) || isTeamTool(toolName);
+}
+
 export function formatToolStatus(toolName: string, input: Record<string, unknown>): string {
 	const base = (p: unknown) => typeof p === 'string' ? path.basename(p) : '';
+	if (isOrchestrationTool(toolName)) {
+		const desc = typeof input.description === 'string' ? input.description : '';
+		return desc ? `Subtask: ${desc.length > TASK_DESCRIPTION_DISPLAY_MAX_LENGTH ? desc.slice(0, TASK_DESCRIPTION_DISPLAY_MAX_LENGTH) + '\u2026' : desc}` : 'Running subtask';
+	}
 	switch (toolName) {
 		case 'Read': return `Reading ${base(input.file_path)}`;
 		case 'Edit': return `Editing ${base(input.file_path)}`;
@@ -32,10 +49,6 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
 		case 'Grep': return 'Searching code';
 		case 'WebFetch': return 'Fetching web content';
 		case 'WebSearch': return 'Searching the web';
-		case 'Task': {
-			const desc = typeof input.description === 'string' ? input.description : '';
-			return desc ? `Subtask: ${desc.length > TASK_DESCRIPTION_DISPLAY_MAX_LENGTH ? desc.slice(0, TASK_DESCRIPTION_DISPLAY_MAX_LENGTH) + '\u2026' : desc}` : 'Running subtask';
-		}
 		case 'AskUserQuestion': return 'Waiting for your answer';
 		case 'EnterPlanMode': return 'Planning';
 		case 'NotebookEdit': return `Editing notebook`;
@@ -76,7 +89,7 @@ export function processTranscriptLine(
 						agent.activeToolIds.add(block.id);
 						agent.activeToolStatuses.set(block.id, status);
 						agent.activeToolNames.set(block.id, toolName);
-						if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
+						if (!isPermissionExemptTool(toolName)) {
 							hasNonExemptTool = true;
 						}
 						postToWebview(webview, {
@@ -109,8 +122,8 @@ export function processTranscriptLine(
 						if (block.type === 'tool_result' && block.tool_use_id) {
 							console.log(`[Pixel Agents] Agent ${agentId} tool done: ${block.tool_use_id}`);
 							const completedToolId = block.tool_use_id;
-							// If the completed tool was a Task, clear its subagent tools
-							if (agent.activeToolNames.get(completedToolId) === 'Task') {
+							// If the completed tool was an orchestration tool, clear its subagent tools
+							if (isOrchestrationTool(agent.activeToolNames.get(completedToolId))) {
 								agent.activeSubagentToolIds.delete(completedToolId);
 								agent.activeSubagentToolNames.delete(completedToolId);
 								postToWebview(webview, {
@@ -204,8 +217,8 @@ function processProgressRecord(
 		return;
 	}
 
-	// Verify parent is an active Task tool (agent_progress handling)
-	if (agent.activeToolNames.get(parentToolId) !== 'Task') return;
+	// Verify parent is an active orchestration tool (Task / Team*)
+	if (!isOrchestrationTool(agent.activeToolNames.get(parentToolId))) return;
 
 	const msg = data.message as Record<string, unknown> | undefined;
 	if (!msg) return;
@@ -239,7 +252,7 @@ function processProgressRecord(
 				}
 				subNames.set(block.id, toolName);
 
-				if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
+				if (!isPermissionExemptTool(toolName)) {
 					hasNonExemptSubTool = true;
 				}
 
@@ -286,7 +299,7 @@ function processProgressRecord(
 		let stillHasNonExempt = false;
 		for (const [, subNames] of agent.activeSubagentToolNames) {
 			for (const [, toolName] of subNames) {
-				if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
+				if (!isPermissionExemptTool(toolName)) {
 					stillHasNonExempt = true;
 					break;
 				}

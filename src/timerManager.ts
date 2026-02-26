@@ -3,6 +3,14 @@ import type { AgentState } from './types.js';
 import { PERMISSION_TIMER_DELAY_MS } from './constants.js';
 import { postToWebview } from './contracts/postMessage.js';
 
+function isPermissionExempt(
+	permissionExemptTools: Set<string>,
+	toolName: string | undefined,
+): boolean {
+	if (!toolName) return false;
+	return permissionExemptTools.has(toolName) || toolName.startsWith('Team');
+}
+
 export function clearAgentActivity(
 	agent: AgentState | undefined,
 	agentId: number,
@@ -84,7 +92,7 @@ export function startPermissionTimer(
 		let hasNonExempt = false;
 		for (const toolId of agent.activeToolIds) {
 			const toolName = agent.activeToolNames.get(toolId);
-			if (!permissionExemptTools.has(toolName || '')) {
+			if (!isPermissionExempt(permissionExemptTools, toolName)) {
 				hasNonExempt = true;
 				break;
 			}
@@ -94,7 +102,7 @@ export function startPermissionTimer(
 		const stuckSubagentParentToolIds: string[] = [];
 		for (const [parentToolId, subToolNames] of agent.activeSubagentToolNames) {
 			for (const [, toolName] of subToolNames) {
-				if (!permissionExemptTools.has(toolName)) {
+				if (!isPermissionExempt(permissionExemptTools, toolName)) {
 					stuckSubagentParentToolIds.push(parentToolId);
 					hasNonExempt = true;
 					break;
