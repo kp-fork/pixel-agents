@@ -4,7 +4,7 @@ import type { OfficeState } from '../engine/officeState.js'
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js'
 import { TILE_SIZE, CharacterState } from '../types.js'
 import { TOOL_OVERLAY_VERTICAL_OFFSET, CHARACTER_SITTING_OFFSET_PX } from '../../constants.js'
-import { isSpeechBubblesEnabled } from '../../speechBubbles.js'
+import { isAlwaysStatusBubblesEnabled } from '../../speechBubbles.js'
 import { deriveOverlayState } from './toolOverlayState.js'
 
 interface ToolOverlayProps {
@@ -30,7 +30,7 @@ export function ToolOverlay({
   panRef,
   onCloseAgent,
 }: ToolOverlayProps) {
-  const showBubbles = isSpeechBubblesEnabled()
+  const showBubbles = isAlwaysStatusBubblesEnabled()
 
   const [, setTick] = useState(0)
   useEffect(() => {

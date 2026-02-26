@@ -9,7 +9,7 @@ import { setWallSprites } from '../office/wallTiles.js'
 import { setCharacterTemplates } from '../office/sprites/spriteData.js'
 import { vscode } from '../vscodeApi.js'
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js'
-import { setSpeechBubblesEnabled } from '../speechBubbles.js'
+import { setAlwaysStatusBubblesEnabled, setEventBubblesEnabled } from '../speechBubbles.js'
 
 export interface SubagentCharacter {
   id: number
@@ -330,9 +330,16 @@ export function useExtensionMessages(
         setWallSprites(sprites)
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean
-        const speechBubblesOn = typeof msg.speechBubblesEnabled === 'boolean' ? msg.speechBubblesEnabled : true
+        const legacySpeechBubblesOn = typeof msg.speechBubblesEnabled === 'boolean' ? msg.speechBubblesEnabled : true
+        const alwaysStatusBubblesOn = typeof msg.alwaysStatusBubblesEnabled === 'boolean'
+          ? msg.alwaysStatusBubblesEnabled
+          : legacySpeechBubblesOn
+        const eventBubblesOn = typeof msg.eventBubblesEnabled === 'boolean'
+          ? msg.eventBubblesEnabled
+          : true
         setSoundEnabled(soundOn)
-        setSpeechBubblesEnabled(speechBubblesOn)
+        setAlwaysStatusBubblesEnabled(alwaysStatusBubblesOn)
+        setEventBubblesEnabled(eventBubblesOn)
       } else if (msg.type === 'furnitureAssetsLoaded') {
         try {
           const catalog = msg.catalog as FurnitureAsset[]

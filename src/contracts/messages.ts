@@ -48,6 +48,8 @@ export type WebviewToExtensionMessage =
 	| { type: 'saveLayout'; layout: Record<string, unknown> }
 	| { type: 'setSoundEnabled'; enabled: boolean }
 	| { type: 'setSpeechBubblesEnabled'; enabled: boolean }
+	| { type: 'setAlwaysStatusBubblesEnabled'; enabled: boolean }
+	| { type: 'setEventBubblesEnabled'; enabled: boolean }
 	| { type: 'webviewReady' }
 	| { type: 'openSessionsFolder' }
 	| { type: 'openExternal'; target: string }
@@ -74,5 +76,11 @@ export type ExtensionToWebviewMessage =
 	| { type: 'floorTilesLoaded'; sprites: string[][][] }
 	| { type: 'wallTilesLoaded'; sprites: string[][][] }
 	| { type: 'furnitureAssetsLoaded'; catalog: FurnitureCatalogAsset[]; sprites: Record<string, string[][]> }
-	| { type: 'settingsLoaded'; soundEnabled: boolean; speechBubblesEnabled: boolean }
+	| {
+		type: 'settingsLoaded';
+		soundEnabled: boolean;
+		speechBubblesEnabled?: boolean;
+		alwaysStatusBubblesEnabled?: boolean;
+		eventBubblesEnabled?: boolean;
+	}
 	| { type: 'trackingEvent'; event: TrackingEvent };

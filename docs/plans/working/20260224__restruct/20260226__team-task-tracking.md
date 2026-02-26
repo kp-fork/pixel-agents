@@ -21,7 +21,7 @@
 
 ### PR21 - 버블 표현 토글 분리(상시 상태/이벤트 아이콘)
 - 목표: 상시 상태 버블과 이벤트 아이콘 버블을 독립 설정으로 제어한다.
-- 상태: pending
+- 상태: done
 - 핵심 작업:
   - 설정 키/메시지 계약 분리
   - Settings UI에 독립 토글 추가
@@ -77,10 +77,26 @@
 
 ### PR21
 - Review:
+  - 기존 `speechBubblesEnabled` 단일 플래그가 상태 오버레이와 이벤트 아이콘 버블을 동시에 제어해, 사용자 의도(상시 상태만 켜기/끄기, 이벤트 아이콘만 켜기/끄기)를 분리할 수 없었다.
 - Improvement:
+  - 설정 키 분리:
+    - `pixel-agents.alwaysStatusBubblesEnabled`
+    - `pixel-agents.eventBubblesEnabled`
+  - 메시지 계약 확장:
+    - inbound: `setAlwaysStatusBubblesEnabled`, `setEventBubblesEnabled`
+    - outbound `settingsLoaded`에 분리 필드 추가(legacy `speechBubblesEnabled` 호환 유지)
+  - UI 반영:
+    - Settings에 `Always status bubbles on`, `Event bubble icons on` 독립 체크 추가
+    - `ToolOverlay`는 always-status 플래그만 참조
+    - 캔버스 renderer의 이벤트 아이콘 버블은 event-bubbles 플래그만 참조
 - Validation:
+  - `npm run check-types` 통과
+  - `npm run build:webview` 통과
+  - `npm run test:flow:batch` 통과
 - Validation Reflection:
+  - 호환 경로를 유지해 기존 설정값을 잃지 않고 자연스럽게 신규 분리 키로 이행된다.
 - Summary:
+  - PR21 완료. 상태 오버레이와 이벤트 아이콘 버블을 독립적으로 켜고 끌 수 있게 분리했다.
 
 ### PR22
 - Review:

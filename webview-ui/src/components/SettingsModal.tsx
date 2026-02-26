@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
 import { vscode } from '../vscodeApi.js'
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js'
-import { isSpeechBubblesEnabled, setSpeechBubblesEnabled } from '../speechBubbles.js'
+import {
+  isAlwaysStatusBubblesEnabled,
+  setAlwaysStatusBubblesEnabled,
+  isEventBubblesEnabled,
+  setEventBubblesEnabled,
+} from '../speechBubbles.js'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -28,12 +33,14 @@ const menuItemBase: React.CSSProperties = {
 export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled)
-  const [speechBubblesLocal, setSpeechBubblesLocal] = useState(isSpeechBubblesEnabled)
+  const [alwaysStatusBubblesLocal, setAlwaysStatusBubblesLocal] = useState(isAlwaysStatusBubblesEnabled)
+  const [eventBubblesLocal, setEventBubblesLocal] = useState(isEventBubblesEnabled)
 
   useEffect(() => {
     if (!isOpen) return
     setSoundLocal(isSoundEnabled())
-    setSpeechBubblesLocal(isSpeechBubblesEnabled())
+    setAlwaysStatusBubblesLocal(isAlwaysStatusBubblesEnabled())
+    setEventBubblesLocal(isEventBubblesEnabled())
   }, [isOpen])
 
   if (!isOpen) return null
@@ -178,10 +185,10 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
         </button>
         <button
           onClick={() => {
-            const newVal = !isSpeechBubblesEnabled()
-            setSpeechBubblesEnabled(newVal)
-            setSpeechBubblesLocal(newVal)
-            vscode.postMessage({ type: 'setSpeechBubblesEnabled', enabled: newVal })
+            const newVal = !isAlwaysStatusBubblesEnabled()
+            setAlwaysStatusBubblesEnabled(newVal)
+            setAlwaysStatusBubblesLocal(newVal)
+            vscode.postMessage({ type: 'setAlwaysStatusBubblesEnabled', enabled: newVal })
           }}
           onMouseEnter={() => setHovered('speech')}
           onMouseLeave={() => setHovered(null)}
@@ -197,7 +204,7 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
               height: 14,
               border: '2px solid rgba(255, 255, 255, 0.5)',
               borderRadius: 0,
-              background: speechBubblesLocal ? 'rgba(90, 140, 255, 0.8)' : 'transparent',
+              background: alwaysStatusBubblesLocal ? 'rgba(90, 140, 255, 0.8)' : 'transparent',
               flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
@@ -207,7 +214,41 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
               color: '#fff',
             }}
           >
-            {speechBubblesLocal ? 'X' : ''}
+            {alwaysStatusBubblesLocal ? 'X' : ''}
+          </span>
+        </button>
+        <button
+          onClick={() => {
+            const newVal = !isEventBubblesEnabled()
+            setEventBubblesEnabled(newVal)
+            setEventBubblesLocal(newVal)
+            vscode.postMessage({ type: 'setEventBubblesEnabled', enabled: newVal })
+          }}
+          onMouseEnter={() => setHovered('event-bubble')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...menuItemBase,
+            background: hovered === 'event-bubble' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          }}
+        >
+          <span>Event bubble icons on</span>
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              border: '2px solid rgba(255, 255, 255, 0.5)',
+              borderRadius: 0,
+              background: eventBubblesLocal ? 'rgba(90, 140, 255, 0.8)' : 'transparent',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              lineHeight: 1,
+              color: '#fff',
+            }}
+          >
+            {eventBubblesLocal ? 'X' : ''}
           </span>
         </button>
         <button
