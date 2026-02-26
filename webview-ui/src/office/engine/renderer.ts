@@ -174,6 +174,13 @@ export function renderScene(
     drawables.push({
       zY: charZY,
       draw: (c) => {
+        if (ch.isHistorical) {
+          c.save()
+          c.globalAlpha = 0.62
+          c.drawImage(cached, drawX, drawY)
+          c.restore()
+          return
+        }
         c.drawImage(cached, drawX, drawY)
       },
     })

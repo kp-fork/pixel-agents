@@ -121,7 +121,7 @@ function App() {
 
   const isEditDirty = useCallback(() => editor.isEditMode && editor.isDirty, [editor.isEditMode, editor.isDirty])
 
-  const { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
+  const { agents, selectedAgent, historySessions, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
 
   const [isDebugMode, setIsDebugMode] = useState(false)
 
@@ -151,12 +151,17 @@ function App() {
   }, [])
 
   const handleClick = useCallback((agentId: number) => {
+    const history = historySessions.find((session) => session.id === agentId)
+    if (history) {
+      vscode.postMessage({ type: 'openSessionTranscript', jsonlPath: history.jsonlPath })
+      return
+    }
     // If clicked agent is a sub-agent, focus the parent's terminal instead
     const os = getOfficeState()
     const meta = os.subagentMeta.get(agentId)
     const focusId = meta ? meta.parentAgentId : agentId
     vscode.postMessage({ type: 'focusAgent', id: focusId })
-  }, [])
+  }, [historySessions])
 
   const officeState = getOfficeState()
 

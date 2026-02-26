@@ -18,6 +18,13 @@ export interface SubagentCharacter {
   label: string
 }
 
+export interface HistorySessionCharacter {
+  id: number
+  sessionId: string
+  jsonlPath: string
+  createdAt: string
+}
+
 export interface FurnitureAsset {
   id: string
   name: string
@@ -39,6 +46,7 @@ export interface FurnitureAsset {
 export interface ExtensionMessageState {
   agents: number[]
   selectedAgent: number | null
+  historySessions: HistorySessionCharacter[]
   agentTools: Record<number, ToolActivity[]>
   agentStatuses: Record<number, string>
   subagentTools: Record<number, Record<string, ToolActivity[]>>
@@ -50,7 +58,7 @@ export interface ExtensionMessageState {
 function saveAgentSeats(os: OfficeState): void {
   const seats: Record<number, { palette: number; hueShift: number; seatId: string | null }> = {}
   for (const ch of os.characters.values()) {
-    if (ch.isSubagent) continue
+    if (ch.isSubagent || ch.isHistorical) continue
     seats[ch.id] = { palette: ch.palette, hueShift: ch.hueShift, seatId: ch.seatId }
   }
   vscode.postMessage({ type: 'saveAgentSeats', seats })
@@ -63,6 +71,7 @@ export function useExtensionMessages(
 ): ExtensionMessageState {
   const [agents, setAgents] = useState<number[]>([])
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null)
+  const [historySessions, setHistorySessions] = useState<HistorySessionCharacter[]>([])
   const [agentTools, setAgentTools] = useState<Record<number, ToolActivity[]>>({})
   const [agentStatuses, setAgentStatuses] = useState<Record<number, string>>({})
   const [subagentTools, setSubagentTools] = useState<Record<number, Record<string, ToolActivity[]>>>({})
@@ -72,10 +81,31 @@ export function useExtensionMessages(
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false)
+  const historySessionsRef = useRef<HistorySessionCharacter[]>([])
 
   useEffect(() => {
     // Buffer agents from existingAgents until layout is loaded
     let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string }> = []
+    let pendingHistorySessions: HistorySessionCharacter[] = []
+
+    const syncHistoryCharacters = (
+      os: OfficeState,
+      prev: HistorySessionCharacter[],
+      next: HistorySessionCharacter[],
+    ): void => {
+      const prevIds = new Set(prev.map((s) => s.id))
+      const nextIds = new Set(next.map((s) => s.id))
+      for (const id of prevIds) {
+        if (!nextIds.has(id)) {
+          os.removeHistoricalAgent(id)
+        }
+      }
+      for (const id of nextIds) {
+        if (!prevIds.has(id)) {
+          os.addHistoricalAgent(id)
+        }
+      }
+    }
 
     const handler = (e: MessageEvent) => {
       const msg = e.data
@@ -101,6 +131,12 @@ export function useExtensionMessages(
           os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true)
         }
         pendingAgents = []
+        if (pendingHistorySessions.length > 0) {
+          syncHistoryCharacters(os, historySessionsRef.current, pendingHistorySessions)
+          historySessionsRef.current = pendingHistorySessions
+          setHistorySessions(pendingHistorySessions)
+          pendingHistorySessions = []
+        }
         layoutReadyRef.current = true
         setLayoutReady(true)
         if (os.characters.size > 0) {
@@ -156,6 +192,17 @@ export function useExtensionMessages(
           }
           return merged.sort((a, b) => a - b)
         })
+      } else if (msg.type === 'historySessionsLoaded') {
+        const incoming = Array.isArray(msg.sessions)
+          ? (msg.sessions as HistorySessionCharacter[])
+          : []
+        if (!layoutReadyRef.current) {
+          pendingHistorySessions = incoming
+        } else {
+          syncHistoryCharacters(os, historySessionsRef.current, incoming)
+          historySessionsRef.current = incoming
+          setHistorySessions(incoming)
+        }
       } else if (msg.type === 'agentToolStart') {
         const id = msg.id as number
         const toolId = msg.toolId as string
@@ -358,5 +405,5 @@ export function useExtensionMessages(
     return () => window.removeEventListener('message', handler)
   }, [getOfficeState])
 
-  return { agents, selectedAgent, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets }
+  return { agents, selectedAgent, historySessions, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets }
 }

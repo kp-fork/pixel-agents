@@ -83,6 +83,10 @@ export class OfficeState {
 
     // First pass: try to keep characters at their existing seats
     for (const ch of this.characters.values()) {
+      if (ch.isHistorical) {
+        ch.seatId = null
+        continue
+      }
       if (ch.seatId && this.seats.has(ch.seatId)) {
         const seat = this.seats.get(ch.seatId)!
         if (!seat.assigned) {
@@ -103,6 +107,7 @@ export class OfficeState {
 
     // Second pass: assign remaining characters to free seats
     for (const ch of this.characters.values()) {
+      if (ch.isHistorical) continue
       if (ch.seatId) continue
       const seatId = this.findFreeSeat()
       if (seatId) {
@@ -175,7 +180,7 @@ export class OfficeState {
     // Count how many non-sub-agents use each base palette (0-5)
     const counts = new Array(PALETTE_COUNT).fill(0) as number[]
     for (const ch of this.characters.values()) {
-      if (ch.isSubagent) continue
+      if (ch.isSubagent || ch.isHistorical) continue
       counts[ch.palette]++
     }
     const minCount = Math.min(...counts)
@@ -242,6 +247,37 @@ export class OfficeState {
       ch.matrixEffectSeeds = matrixEffectSeeds()
     }
     this.characters.set(id, ch)
+  }
+
+  addHistoricalAgent(id: number): void {
+    if (this.characters.has(id)) return
+
+    const pick = this.pickDiversePalette()
+    const ch = createCharacter(id, pick.palette, null, null, pick.hueShift)
+
+    const spawn = this.walkableTiles.length > 0
+      ? this.walkableTiles[Math.floor(Math.random() * this.walkableTiles.length)]
+      : { col: 1, row: 1 }
+
+    ch.x = spawn.col * TILE_SIZE + TILE_SIZE / 2
+    ch.y = spawn.row * TILE_SIZE + TILE_SIZE / 2
+    ch.tileCol = spawn.col
+    ch.tileRow = spawn.row
+    ch.state = CharacterState.TYPE
+    ch.isActive = true
+    ch.currentTool = null
+    ch.bubbleType = null
+    ch.isHistorical = true
+
+    this.characters.set(id, ch)
+  }
+
+  removeHistoricalAgent(id: number): void {
+    const ch = this.characters.get(id)
+    if (!ch || !ch.isHistorical) return
+    this.characters.delete(id)
+    if (this.selectedAgentId === id) this.selectedAgentId = null
+    if (this.cameraFollowId === id) this.cameraFollowId = null
   }
 
   removeAgent(id: number): void {
@@ -336,7 +372,7 @@ export class OfficeState {
   /** Walk an agent to an arbitrary walkable tile (right-click command) */
   walkToTile(agentId: number, col: number, row: number): boolean {
     const ch = this.characters.get(agentId)
-    if (!ch || ch.isSubagent) return false
+    if (!ch || ch.isSubagent || ch.isHistorical) return false
     if (!isWalkable(col, row, this.tileMap, this.blockedTiles)) {
       // Also allow walking to own seat tile (blocked for others but not self)
       const key = this.ownSeatKey(ch)
@@ -494,6 +530,7 @@ export class OfficeState {
   setAgentActive(id: number, active: boolean): void {
     const ch = this.characters.get(id)
     if (ch) {
+      if (ch.isHistorical) return
       ch.isActive = active
       if (!active) {
         // Sentinel -1: signals turn just ended, skip next seat rest timer.
@@ -511,7 +548,7 @@ export class OfficeState {
     // Collect tiles where active agents face desks
     const autoOnTiles = new Set<string>()
     for (const ch of this.characters.values()) {
-      if (!ch.isActive || !ch.seatId) continue
+      if (!ch.isActive || ch.isHistorical || !ch.seatId) continue
       const seat = this.seats.get(ch.seatId)
       if (!seat) continue
       // Find the desk tile(s) the agent faces from their seat
