@@ -35,6 +35,11 @@ export const GLOBAL_KEY_SPEECH_BUBBLES_ENABLED = 'pixel-agents.speechBubblesEnab
 export const GLOBAL_KEY_ALWAYS_STATUS_BUBBLES_ENABLED = 'pixel-agents.alwaysStatusBubblesEnabled';
 export const GLOBAL_KEY_EVENT_BUBBLES_ENABLED = 'pixel-agents.eventBubblesEnabled';
 
+// ── History Session View ─────────────────────────────────────
+export const HISTORY_SESSIONS_ENABLED_DEFAULT = true;
+export const HISTORY_SESSIONS_LOOKBACK_DAYS_DEFAULT = 3;
+export const HISTORY_SESSIONS_MAX_VISIBLE_DEFAULT = 8;
+
 // ── VS Code Identifiers ─────────────────────────────────────
 export const VIEW_ID = 'pixel-agents.panelView';
 export const COMMAND_SHOW_PANEL = 'pixel-agents.showPanel';

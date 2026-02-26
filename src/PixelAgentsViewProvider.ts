@@ -22,9 +22,13 @@ import {
 	GLOBAL_KEY_SPEECH_BUBBLES_ENABLED,
 	GLOBAL_KEY_ALWAYS_STATUS_BUBBLES_ENABLED,
 	GLOBAL_KEY_EVENT_BUBBLES_ENABLED,
+	HISTORY_SESSIONS_ENABLED_DEFAULT,
+	HISTORY_SESSIONS_LOOKBACK_DAYS_DEFAULT,
+	HISTORY_SESSIONS_MAX_VISIBLE_DEFAULT,
 } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
+import { collectHistorySessions } from './historySessions.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	nextAgentId = { current: 1 };
@@ -63,6 +67,28 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	private persistAgents = (): void => {
 		persistAgents(this.agents, this.context);
 	};
+
+	private sendHistorySessions(projectDir: string | null): void {
+		if (!this.webview) return;
+
+		const config = vscode.workspace.getConfiguration('pixel-agents');
+		const enabled = config.get<boolean>('historySessions.enabled', HISTORY_SESSIONS_ENABLED_DEFAULT);
+		const lookbackDays = config.get<number>('historySessions.lookbackDays', HISTORY_SESSIONS_LOOKBACK_DAYS_DEFAULT);
+		const maxVisible = config.get<number>('historySessions.maxVisible', HISTORY_SESSIONS_MAX_VISIBLE_DEFAULT);
+
+		const sessions = collectHistorySessions(
+			projectDir,
+			Array.from(this.agents.values()).map((agent) => agent.jsonlFile),
+			{ enabled, lookbackDays, maxVisible },
+		).map((session) => ({
+			id: session.id,
+			sessionId: session.sessionId,
+			jsonlPath: session.jsonlPath,
+			createdAt: new Date(session.createdAtMs).toISOString(),
+		}));
+
+		postToWebview(this.webview, { type: 'historySessionsLoaded', sessions });
+	}
 
 	resolveWebviewView(webviewView: vscode.WebviewView) {
 		this.webviewView = webviewView;
@@ -241,6 +267,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					})();
 				}
 				sendExistingAgents(this.agents, this.context, this.webview);
+				this.sendHistorySessions(projectDir);
 			} else if (message.type === 'openSessionsFolder') {
 				const liveAgentDir = Array.from(this.agents.values())
 					.map((agent) => agent.projectDir)
@@ -256,6 +283,19 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					} else {
 						vscode.window.showWarningMessage('Pixel Agents: Session folder not found.');
 					}
+				}
+			} else if (message.type === 'openSessionTranscript') {
+				const jsonlPath = (message.jsonlPath || '').trim();
+				if (!jsonlPath) return;
+				if (!fs.existsSync(jsonlPath)) {
+					vscode.window.showWarningMessage(`Pixel Agents: Session file not found: ${jsonlPath}`);
+					return;
+				}
+				try {
+					const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(jsonlPath));
+					await vscode.window.showTextDocument(doc, { preview: false });
+				} catch {
+					vscode.window.showWarningMessage('Pixel Agents: Failed to open session transcript.');
 				}
 			} else if (message.type === 'openExternal') {
 				const target = (message.target || '').trim();

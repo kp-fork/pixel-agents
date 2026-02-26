@@ -58,6 +58,25 @@
           "type": "string",
           "default": "claude --session-id {sessionId}",
           "description": "Command used when creating a new Claude terminal. Supported placeholders: {sessionId}, ${sessionId}, $SESSION_ID, %SESSION_ID%. If no placeholder is present, --session-id <id> is appended automatically."
+        },
+        "pixel-agents.historySessions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show recent session transcripts from this workspace as read-only history characters."
+        },
+        "pixel-agents.historySessions.lookbackDays": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 365,
+          "description": "Include only sessions created in the last N days."
+        },
+        "pixel-agents.historySessions.maxVisible": {
+          "type": "number",
+          "default": 8,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Maximum number of history session characters to show."
         }
       }
     }

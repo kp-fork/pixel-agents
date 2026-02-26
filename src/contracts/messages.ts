@@ -40,6 +40,13 @@ export interface FurnitureCatalogAsset {
 	state?: string;
 }
 
+export interface HistorySessionSummary {
+	id: number;
+	sessionId: string;
+	jsonlPath: string;
+	createdAt: string;
+}
+
 export type WebviewToExtensionMessage =
 	| { type: 'openClaude' }
 	| { type: 'focusAgent'; id: number }
@@ -52,6 +59,7 @@ export type WebviewToExtensionMessage =
 	| { type: 'setEventBubblesEnabled'; enabled: boolean }
 	| { type: 'webviewReady' }
 	| { type: 'openSessionsFolder' }
+	| { type: 'openSessionTranscript'; jsonlPath: string }
 	| { type: 'openExternal'; target: string }
 	| { type: 'exportLayout' }
 	| { type: 'importLayout' };
@@ -61,6 +69,7 @@ export type ExtensionToWebviewMessage =
 	| { type: 'agentCreated'; id: number }
 	| { type: 'agentClosed'; id: number }
 	| { type: 'existingAgents'; agents: number[]; agentMeta?: Record<string, ExistingAgentMeta> }
+	| { type: 'historySessionsLoaded'; sessions: HistorySessionSummary[] }
 	| { type: 'agentSelected'; id: number }
 	| { type: 'agentToolStart'; id: number; toolId: string; status: string }
 	| { type: 'agentToolDone'; id: number; toolId: string }
