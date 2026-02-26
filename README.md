@@ -45,6 +45,39 @@ npm run build
 
 Then press **F5** in VS Code to launch the Extension Development Host.
 
+### Build and install locally (`.vsix`)
+
+If you want to run Pixel Agents as a normal installed extension (instead of the Extension Development Host), package and install a local `.vsix`:
+
+```bash
+# 1) Build + create VSIX
+npx @vscode/vsce package
+
+# 2) Install (force-reinstall same version)
+code --install-extension pixel-agents-1.0.0.vsix --force
+```
+
+To check what is installed:
+
+```bash
+code --list-extensions --show-versions | rg pablodelucca.pixel-agents
+```
+
+Notes:
+- `npm run package` only runs the build pipeline; it does not create a `.vsix` by itself.
+- `--list-extensions` is a listing mode. If you pass it together with `--extensionDevelopmentPath`, VS Code prints extensions and exits instead of launching a dev host.
+
+### Run as extension development host
+
+Use this when iterating on source changes without installing a `.vsix`:
+
+```bash
+code --new-window --extensionDevelopmentPath=.
+```
+
+You can confirm which runtime instance is currently loaded with:
+- Command Palette → **Pixel Agents: Show Runtime Info**
+
 ### Dual-host development (experimental)
 
 You can run the VS Code extension path and the standalone host prototypes independently:

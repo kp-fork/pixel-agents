@@ -6,6 +6,7 @@ import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from '.
 import { processTranscriptLine } from './transcriptParser.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
 import { postToWebview } from './contracts/postMessage.js';
+import { decideJsonlRouting } from './application/tracking/jsonlRouting.js';
 
 export function startFileWatching(
 	agentId: number,
@@ -135,34 +136,23 @@ function scanForNewJsonlFiles(
 	for (const file of files) {
 		if (!knownJsonlFiles.has(file)) {
 			knownJsonlFiles.add(file);
-			if (activeAgentIdRef.current !== null) {
-				// Active agent focused → /clear reassignment
-				console.log(`[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${activeAgentIdRef.current}`);
+
+			const activeTerminal = vscode.window.activeTerminal;
+			const routing = decideJsonlRouting(activeAgentIdRef.current, activeTerminal, agents.values());
+			if (routing.action === 'reassign') {
+				console.log(`[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${routing.agentId}`);
 				reassignAgentToFile(
-					activeAgentIdRef.current, file,
+					routing.agentId, file,
 					agents, fileWatchers, pollingTimers, waitingTimers, permissionTimers,
 					webview, persistAgents,
 				);
-			} else {
-				// No active agent → try to adopt the focused terminal
-				const activeTerminal = vscode.window.activeTerminal;
-				if (activeTerminal) {
-					let owned = false;
-					for (const agent of agents.values()) {
-						if (agent.terminalRef === activeTerminal) {
-							owned = true;
-							break;
-						}
-					}
-					if (!owned) {
-						adoptTerminalForFile(
-							activeTerminal, file, projectDir,
-							nextAgentIdRef, agents, activeAgentIdRef,
-							fileWatchers, pollingTimers, waitingTimers, permissionTimers,
-							webview, persistAgents,
-						);
-					}
-				}
+			} else if (routing.action === 'adopt' && activeTerminal) {
+				adoptTerminalForFile(
+					activeTerminal, file, projectDir,
+					nextAgentIdRef, agents, activeAgentIdRef,
+					fileWatchers, pollingTimers, waitingTimers, permissionTimers,
+					webview, persistAgents,
+				);
 			}
 		}
 	}

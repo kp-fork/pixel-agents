@@ -27,6 +27,10 @@
       {
         "command": "pixel-agents.exportDefaultLayout",
         "title": "Pixel Agents: Export Layout as Default"
+      },
+      {
+        "command": "pixel-agents.showRuntimeInfo",
+        "title": "Pixel Agents: Show Runtime Info"
       }
     ],
     "viewsContainers": {
@@ -46,6 +50,16 @@
           "name": "Pixel Agents"
         }
       ]
+    },
+    "configuration": {
+      "title": "Pixel Agents",
+      "properties": {
+        "pixel-agents.claudeLaunchCommand": {
+          "type": "string",
+          "default": "claude --session-id {sessionId}",
+          "description": "Command used when creating a new Claude terminal. Supported placeholders: {sessionId}, ${sessionId}, $SESSION_ID, %SESSION_ID%. If no placeholder is present, --session-id <id> is appended automatically."
+        }
+      }
     }
   },
   "scripts": {
@@ -65,6 +79,9 @@
     "check-types:packages": "tsc --noEmit --project tsconfig.packages.json",
     "check-types:desktop-electrobun": "tsc --noEmit --project apps/desktop-electrobun/tsconfig.json",
     "check-types:view-harness": "tsc --noEmit --project apps/view-harness/tsconfig.json",
+    "test:routing": "tsx scripts/test-jsonl-routing.ts",
+    "test:flow": "tsx scripts/verify-agent-flow.ts",
+    "test:runtime": "npm-run-all test:routing test:flow",
     "lint": "eslint src",
     "import-tileset": "tsx scripts/import-tileset-cli.ts"
   },
