@@ -310,8 +310,8 @@ function App() {
               <div
                 style={{
                   whiteSpace: 'nowrap',
-                  fontSize: '16px',
-                  fontWeight: 600,
+                  fontSize: '10px',
+                  fontWeight: 400,
                   letterSpacing: '0.1px',
                   color: 'var(--vscode-foreground)',
                   fontFamily: 'var(--vscode-font-family)',
