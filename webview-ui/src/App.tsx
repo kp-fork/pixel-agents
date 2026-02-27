@@ -5,6 +5,7 @@ import { ToolOverlay } from './office/components/ToolOverlay.js'
 import { EditorToolbar } from './office/editor/EditorToolbar.js'
 import { EditorState } from './office/editor/editorState.js'
 import { EditTool } from './office/types.js'
+import type { AgentId } from './office/types.js'
 import { isRotatable } from './office/layout/furnitureCatalog.js'
 import { vscode } from './vscodeApi.js'
 import { useExtensionMessages } from './hooks/useExtensionMessages.js'
@@ -40,6 +41,63 @@ const actionBarBtnDisabled: React.CSSProperties = {
   ...actionBarBtnStyle,
   opacity: 'var(--pixel-btn-disabled-opacity)',
   cursor: 'default',
+}
+
+function parseIsoToMs(iso: string): number {
+  if (!iso) return 0
+  const ms = Date.parse(iso)
+  return Number.isFinite(ms) ? ms : 0
+}
+
+function formatAgeShort(targetMs: number): string {
+  if (!Number.isFinite(targetMs) || targetMs <= 0) return '-'
+  const diffSec = Math.max(0, Math.floor((Date.now() - targetMs) / 1000))
+  if (diffSec < 60) return `${diffSec}s`
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin}m`
+  const diffHour = Math.floor(diffMin / 60)
+  if (diffHour < 24) return `${diffHour}h`
+  const diffDay = Math.floor(diffHour / 24)
+  if (diffDay < 30) return `${diffDay}d`
+  const diffMon = Math.floor(diffDay / 30)
+  if (diffMon < 12) return `${diffMon}mo`
+  return `${Math.floor(diffMon / 12)}y`
+}
+
+function formatLocalTime(iso: string): string {
+  const ms = parseIsoToMs(iso)
+  if (ms <= 0) return '-'
+  return new Date(ms).toLocaleString()
+}
+
+function toHistoryTitleSnippet(preview: string, sessionId: string): string {
+  const base = (preview || '').replace(/\s+/g, ' ').trim() || sessionId
+  const maxLen = 28
+  if (base.length <= maxLen) return base
+  return `${base.slice(0, maxLen - 1)}…`
+}
+
+function makeLayoutFilename(): string {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  const hh = String(now.getHours()).padStart(2, '0')
+  const mm = String(now.getMinutes()).padStart(2, '0')
+  const ss = String(now.getSeconds()).padStart(2, '0')
+  return `pixel-agents-layout-${y}${m}${d}-${hh}${mm}${ss}.json`
+}
+
+function downloadJson(filename: string, data: unknown): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 function EditActionBar({ editor, editorState: es }: { editor: ReturnType<typeof useEditorActions>; editorState: EditorState }) {
@@ -124,10 +182,11 @@ function App() {
   const { agents, selectedAgent, historySessions, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
 
   const [isDebugMode, setIsDebugMode] = useState(false)
+  const [hoveredAgentId, setHoveredAgentId] = useState<AgentId | null>(null)
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
 
-  const handleSelectAgent = useCallback((id: number) => {
+  const handleSelectAgent = useCallback((id: AgentId) => {
     vscode.postMessage({ type: 'focusAgent', id })
   }, [])
 
@@ -146,14 +205,19 @@ function App() {
     editor.handleToggleEditMode,
   )
 
-  const handleCloseAgent = useCallback((id: number) => {
+  const handleCloseAgent = useCallback((id: AgentId) => {
     vscode.postMessage({ type: 'closeAgent', id })
   }, [])
 
-  const handleClick = useCallback((agentId: number) => {
+  const handleClick = useCallback((agentId: AgentId) => {
     const history = historySessions.find((session) => session.id === agentId)
     if (history) {
-      vscode.postMessage({ type: 'openSessionTranscript', jsonlPath: history.jsonlPath })
+      vscode.postMessage({
+        type: 'openHistorySession',
+        historyId: history.id,
+        sessionId: history.sessionId,
+        jsonlPath: history.jsonlPath,
+      })
       return
     }
     // If clicked agent is a sub-agent, focus the parent's terminal instead
@@ -163,7 +227,15 @@ function App() {
     vscode.postMessage({ type: 'focusAgent', id: focusId })
   }, [historySessions])
 
+  const handleExportLayout = useCallback(() => {
+    const layout = getOfficeState().getLayout()
+    downloadJson(makeLayoutFilename(), layout)
+  }, [])
+
   const officeState = getOfficeState()
+  const hoveredHistory = !editor.isEditMode
+    ? historySessions.find((session) => session.id === hoveredAgentId) || null
+    : null
 
   // Force dependency on editorTickForKeyboard to propagate keyboard-triggered re-renders
   void editorTickForKeyboard
@@ -201,6 +273,7 @@ function App() {
       <OfficeCanvas
         officeState={officeState}
         onClick={handleClick}
+        onHoverAgent={setHoveredAgentId}
         isEditMode={editor.isEditMode}
         editorState={editorState}
         onEditorTileAction={editor.handleEditorTileAction}
@@ -216,6 +289,46 @@ function App() {
       />
 
       <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />
+
+      {hoveredHistory && (() => {
+        const title = toHistoryTitleSnippet(hoveredHistory.preview, hoveredHistory.sessionId)
+        return (
+        <div
+          style={{
+            position: 'absolute',
+            right: 10,
+            top: 10,
+            zIndex: 'var(--pixel-controls-z)',
+            background: 'var(--pixel-bg)',
+            border: '2px solid var(--pixel-border)',
+            boxShadow: 'var(--pixel-shadow)',
+            padding: '8px 10px',
+            width: 320,
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ fontSize: '19px', color: 'var(--vscode-foreground)', marginBottom: 4 }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ color: 'var(--pixel-text-dim)', whiteSpace: 'nowrap', fontSize: '20px' }}>
+                -{formatAgeShort(parseIsoToMs(hoveredHistory.lastActivityAt))}
+              </div>
+              <div style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {title}
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: '16px', color: 'var(--pixel-text-dim)', marginBottom: 4 }}>
+            Last active: {formatLocalTime(hoveredHistory.lastActivityAt)}
+          </div>
+          <div style={{ fontSize: '16px', color: 'var(--pixel-text-dim)', marginBottom: 6 }}>
+            Created: {formatLocalTime(hoveredHistory.createdAt)}
+          </div>
+          <div style={{ fontSize: '18px', color: 'var(--vscode-foreground)', whiteSpace: 'pre-wrap', lineHeight: 1.3 }}>
+            {hoveredHistory.preview || '(No preview text)'}
+          </div>
+        </div>
+        )
+      })()}
 
       {/* Vignette overlay */}
       <div
@@ -234,6 +347,7 @@ function App() {
         onToggleEditMode={editor.handleToggleEditMode}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
+        onExportLayout={handleExportLayout}
       />
 
       {editor.isEditMode && editor.isDirty && (
@@ -292,6 +406,7 @@ function App() {
       <ToolOverlay
         officeState={officeState}
         agents={agents}
+        historySessions={historySessions}
         agentTools={agentTools}
         subagentTools={subagentTools}
         subagentCharacters={subagentCharacters}

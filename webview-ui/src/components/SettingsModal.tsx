@@ -13,6 +13,7 @@ interface SettingsModalProps {
   onClose: () => void
   isDebugMode: boolean
   onToggleDebugMode: () => void
+  onExportLayout: () => void
 }
 
 const menuItemBase: React.CSSProperties = {
@@ -30,7 +31,7 @@ const menuItemBase: React.CSSProperties = {
   textAlign: 'left',
 }
 
-export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode, onExportLayout }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled)
   const [alwaysStatusBubblesLocal, setAlwaysStatusBubblesLocal] = useState(isAlwaysStatusBubblesEnabled)
@@ -123,7 +124,7 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode 
         </button>
         <button
           onClick={() => {
-            vscode.postMessage({ type: 'exportLayout' })
+            onExportLayout()
             onClose()
           }}
           onMouseEnter={() => setHovered('export')}
