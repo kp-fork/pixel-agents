@@ -11,7 +11,33 @@ function assert(condition: unknown, message: string): void {
 
 function writeJsonl(dir: string, sessionId: string, daysAgo: number): string {
   const filePath = path.join(dir, `${sessionId}.jsonl`);
-  fs.writeFileSync(filePath, JSON.stringify({ type: 'assistant' }) + '\n', 'utf-8');
+  fs.writeFileSync(filePath, JSON.stringify({ type: 'user', isSidechain: false, sessionId }) + '\n', 'utf-8');
+  const now = Date.now();
+  const ts = new Date(now - (daysAgo * 24 * 60 * 60 * 1000));
+  fs.utimesSync(filePath, ts, ts);
+  return filePath;
+}
+
+function writeTeamJsonl(dir: string, sessionId: string, daysAgo: number): string {
+  const filePath = path.join(dir, `${sessionId}.jsonl`);
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify({ type: 'user', isSidechain: false, sessionId, teamName: 't', agentName: 'worker' }) + '\n',
+    'utf-8',
+  );
+  const now = Date.now();
+  const ts = new Date(now - (daysAgo * 24 * 60 * 60 * 1000));
+  fs.utimesSync(filePath, ts, ts);
+  return filePath;
+}
+
+function writeSnapshotOnlyJsonl(dir: string, sessionId: string, daysAgo: number): string {
+  const filePath = path.join(dir, `${sessionId}.jsonl`);
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify({ type: 'file-history-snapshot', messageId: 'x', snapshot: {}, isSnapshotUpdate: false }) + '\n',
+    'utf-8',
+  );
   const now = Date.now();
   const ts = new Date(now - (daysAgo * 24 * 60 * 60 * 1000));
   fs.utimesSync(filePath, ts, ts);
@@ -30,11 +56,15 @@ async function main(): Promise<void> {
     const s2 = mkSessionId('22222222222222222222222222222222');
     const s3 = mkSessionId('33333333333333333333333333333333');
     const s4 = mkSessionId('44444444444444444444444444444444');
+    const s5 = mkSessionId('55555555555555555555555555555555');
+    const s6 = mkSessionId('66666666666666666666666666666666');
 
     const recentLive = writeJsonl(tempRoot, s1, 0);
     writeJsonl(tempRoot, s2, 1);
     writeJsonl(tempRoot, s3, 2);
     writeJsonl(tempRoot, s4, 8);
+    writeTeamJsonl(tempRoot, s5, 1);
+    writeSnapshotOnlyJsonl(tempRoot, s6, 1);
 
     const recent = collectHistorySessions(
       tempRoot,
@@ -45,6 +75,8 @@ async function main(): Promise<void> {
     assert(recent.length === 2, `expected 2 recent sessions, got ${recent.length}`);
     assert(recent.every((s) => s.jsonlPath !== recentLive), 'live session path must be excluded');
     assert(recent.every((s) => s.sessionId === s2 || s.sessionId === s3), 'unexpected session IDs in result');
+    assert(recent.every((s) => s.sessionId !== s5), 'team/subagent session must be excluded');
+    assert(recent.every((s) => s.sessionId !== s6), 'snapshot-only session must be excluded');
 
     const capped = collectHistorySessions(
       tempRoot,
@@ -52,6 +84,24 @@ async function main(): Promise<void> {
       { enabled: true, lookbackDays: 30, maxVisible: 1 },
     );
     assert(capped.length === 1, `expected maxVisible cap=1, got ${capped.length}`);
+
+    // Exclude by live session ID even when live path is from another project dir.
+    const staleLivePath = path.join(tempRoot, 'stale', `${s2}.jsonl`);
+    const bySessionFromPath = collectHistorySessions(
+      tempRoot,
+      [staleLivePath],
+      { enabled: true, lookbackDays: 30, maxVisible: 10 },
+    );
+    assert(bySessionFromPath.every((s) => s.sessionId !== s2), 'live session inferred from jsonl basename must be excluded');
+
+    // Explicit liveSessionIds should also exclude matching history entries.
+    const byLiveSessionIds = collectHistorySessions(
+      tempRoot,
+      [],
+      { enabled: true, lookbackDays: 30, maxVisible: 10 },
+      [s3],
+    );
+    assert(byLiveSessionIds.every((s) => s.sessionId !== s3), 'liveSessionIds must be excluded');
 
     const disabled = collectHistorySessions(
       tempRoot,

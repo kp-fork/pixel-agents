@@ -7,6 +7,7 @@ import type { WebviewToExtensionMessage } from './contracts/messages.js';
 import { postToWebview } from './contracts/postMessage.js';
 import {
 	launchNewTerminal,
+	launchTerminalForSession,
 	removeAgent,
 	restoreAgents,
 	persistAgents,
@@ -28,7 +29,7 @@ import {
 } from './constants.js';
 import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
-import { collectHistorySessions } from './historySessions.js';
+import { canResumeHistorySession, collectHistorySessions } from './historySessions.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	nextAgentId = { current: 1 };
@@ -76,15 +77,33 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		const lookbackDays = config.get<number>('historySessions.lookbackDays', HISTORY_SESSIONS_LOOKBACK_DAYS_DEFAULT);
 		const maxVisible = config.get<number>('historySessions.maxVisible', HISTORY_SESSIONS_MAX_VISIBLE_DEFAULT);
 
+		const liveSessionIds = Array.from(new Set(
+			Array.from(this.agents.values()).flatMap((agent) => {
+				const ids: string[] = [];
+				const terminalMatch = agent.terminalRef.name.match(/\(([0-9a-fA-F-]{36})\)$/);
+				if (terminalMatch?.[1]) {
+					ids.push(terminalMatch[1].toLowerCase());
+				}
+				const fileSessionId = path.basename(agent.jsonlFile, '.jsonl');
+				if (/^[0-9a-fA-F-]{36}$/.test(fileSessionId)) {
+					ids.push(fileSessionId.toLowerCase());
+				}
+				return ids;
+			}),
+		));
+
 		const sessions = collectHistorySessions(
 			projectDir,
 			Array.from(this.agents.values()).map((agent) => agent.jsonlFile),
 			{ enabled, lookbackDays, maxVisible },
+			liveSessionIds,
 		).map((session) => ({
 			id: session.id,
 			sessionId: session.sessionId,
 			jsonlPath: session.jsonlPath,
 			createdAt: new Date(session.createdAtMs).toISOString(),
+			lastActivityAt: new Date(session.lastActivityAtMs).toISOString(),
+			preview: session.preview,
 		}));
 
 		postToWebview(this.webview, { type: 'historySessionsLoaded', sessions });
@@ -104,6 +123,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					this.jsonlPollTimers, this.projectScanTimer,
 					this.webview, this.persistAgents,
 				);
+				this.sendHistorySessions(getProjectDirPath());
 			} else if (message.type === 'focusAgent') {
 				const agent = this.agents.get(message.id);
 				if (agent) {
@@ -284,19 +304,63 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 						vscode.window.showWarningMessage('Pixel Agents: Session folder not found.');
 					}
 				}
-			} else if (message.type === 'openSessionTranscript') {
-				const jsonlPath = (message.jsonlPath || '').trim();
-				if (!jsonlPath) return;
-				if (!fs.existsSync(jsonlPath)) {
-					vscode.window.showWarningMessage(`Pixel Agents: Session file not found: ${jsonlPath}`);
+			} else if (message.type === 'openHistorySession') {
+				const historyId = Number.isInteger(message.historyId) ? message.historyId : undefined;
+				const rawJsonlPath = (message.jsonlPath || '').trim();
+				const rawSessionId = (message.sessionId || '').trim();
+				const derivedSessionId = (!rawSessionId && rawJsonlPath.endsWith('.jsonl'))
+					? path.basename(rawJsonlPath, '.jsonl')
+					: '';
+				const sessionId = rawSessionId || derivedSessionId;
+				if (!sessionId) {
+					vscode.window.showWarningMessage('Pixel Agents: Missing history session id.');
 					return;
 				}
-				try {
-					const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(jsonlPath));
-					await vscode.window.showTextDocument(doc, { preview: false });
-				} catch {
-					vscode.window.showWarningMessage('Pixel Agents: Failed to open session transcript.');
+				if (rawJsonlPath && !canResumeHistorySession(rawJsonlPath, sessionId)) {
+					vscode.window.showWarningMessage('Pixel Agents: This history entry cannot be resumed.');
+					this.sendHistorySessions(getProjectDirPath());
+					return;
 				}
+
+				const projectDir = getProjectDirPath();
+				const expectedJsonlPath = rawJsonlPath || (projectDir ? path.join(projectDir, `${sessionId}.jsonl`) : '');
+				const sessionIdFromTerminalName = (name: string): string => {
+					const match = name.match(/\(([0-9a-fA-F-]{36})\)$/);
+					return match ? match[1] : '';
+				};
+				for (const [id, agent] of this.agents) {
+					const terminalSessionId = sessionIdFromTerminalName(agent.terminalRef.name);
+					const sameSession = path.basename(agent.jsonlFile) === `${sessionId}.jsonl`
+						|| (expectedJsonlPath !== '' && agent.jsonlFile === expectedJsonlPath)
+						|| terminalSessionId === sessionId;
+					if (!sameSession) continue;
+					this.activeAgentId.current = id;
+					agent.terminalRef.show();
+					postToWebview(this.webview, { type: 'agentSelected', id });
+					this.sendHistorySessions(projectDir);
+					return;
+				}
+				const existingTerminal = vscode.window.terminals.find((terminal) =>
+					sessionIdFromTerminalName(terminal.name) === sessionId
+				);
+				launchTerminalForSession(
+					sessionId,
+					this.nextAgentId, this.nextTerminalIndex,
+					this.agents, this.activeAgentId, this.knownJsonlFiles,
+					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
+					this.jsonlPollTimers, this.projectScanTimer,
+					this.webview, this.persistAgents,
+					{
+						resumeSession: true,
+						preferredAgentId: historyId,
+						terminal: existingTerminal,
+						sendCommand: existingTerminal ? false : true,
+					},
+				);
+				if (existingTerminal) {
+					existingTerminal.show();
+				}
+				this.sendHistorySessions(projectDir);
 			} else if (message.type === 'openExternal') {
 				const target = (message.target || '').trim();
 				if (!target) return;
@@ -369,6 +433,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 						this.jsonlPollTimers, this.persistAgents,
 					);
 					postToWebview(webviewView.webview, { type: 'agentClosed', id });
+					this.sendHistorySessions(getProjectDirPath());
+					break;
 				}
 			}
 		});
