@@ -157,10 +157,13 @@ function extractPreviewFromRecord(record: JsonlRecord): string {
 	return truncatePreview(text, 120);
 }
 
-function analyzeSessionTail(jsonlPath: string, expectedSessionId: string): { lastActivityAtMs: number; preview: string } {
+function analyzeSessionTail(
+	jsonlPath: string,
+	expectedSessionId: string,
+): { lastActivityAtMs: number; userPreview: string; assistantPreview: string } {
 	const tail = readFileTail(jsonlPath, 96 * 1024);
 	if (!tail) {
-		return { lastActivityAtMs: 0, preview: '' };
+		return { lastActivityAtMs: 0, userPreview: '', assistantPreview: '' };
 	}
 
 	const lines = tail.split('\n');
@@ -208,8 +211,42 @@ function analyzeSessionTail(jsonlPath: string, expectedSessionId: string): { las
 
 	return {
 		lastActivityAtMs,
-		preview: latestUserPreview || latestAssistantPreview || '',
+		userPreview: latestUserPreview,
+		assistantPreview: latestAssistantPreview,
 	};
+}
+
+function findFirstUserPreview(jsonlPath: string, expectedSessionId: string): string {
+	const head = readFilePrefix(jsonlPath, 96 * 1024);
+	if (!head) {
+		return '';
+	}
+	const lines = head.split('\n');
+	for (const raw of lines) {
+		const line = raw.trim();
+		if (!line || line[0] !== '{') {
+			continue;
+		}
+		let record: JsonlRecord;
+		try {
+			record = JSON.parse(line) as JsonlRecord;
+		} catch {
+			continue;
+		}
+		const recordSessionId = typeof record.sessionId === 'string' ? record.sessionId : '';
+		if (recordSessionId && recordSessionId !== expectedSessionId) {
+			continue;
+		}
+		const recordType = typeof record.type === 'string' ? record.type : '';
+		if (recordType !== 'user' || record.isMeta === true) {
+			continue;
+		}
+		const preview = extractPreviewFromRecord(record);
+		if (preview) {
+			return preview;
+		}
+	}
+	return '';
 }
 
 function shouldIncludeHistorySession(jsonlPath: string): boolean {
@@ -334,6 +371,8 @@ export function collectHistorySessions(
 		if (!Number.isFinite(createdAtMs)) continue;
 
 		const tail = analyzeSessionTail(jsonlPath, sessionId);
+		const firstUserPreview = tail.userPreview ? '' : findFirstUserPreview(jsonlPath, sessionId);
+		const preview = tail.userPreview || firstUserPreview || tail.assistantPreview;
 		const lastActivityAtMs = tail.lastActivityAtMs > 0
 			? tail.lastActivityAtMs
 			: (Number.isFinite(stat.mtimeMs) ? stat.mtimeMs : createdAtMs);
@@ -345,7 +384,7 @@ export function collectHistorySessions(
 			jsonlPath,
 			createdAtMs,
 			lastActivityAtMs,
-			preview: tail.preview,
+			preview,
 		});
 	}
 
