@@ -304,11 +304,20 @@ function App() {
         >
           <div style={{ fontSize: '19px', color: 'var(--vscode-foreground)', marginBottom: 4 }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ color: 'var(--pixel-text-dim)', whiteSpace: 'nowrap', fontSize: '20px' }}>
-                {formatHistoryAgeAgo(parseIsoToMs(hoveredHistory.lastActivityAt))}
-              </div>
               <div style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {title}
+              </div>
+              <div
+                style={{
+                  whiteSpace: 'nowrap',
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  letterSpacing: '0.1px',
+                  color: 'var(--vscode-foreground)',
+                  fontFamily: 'var(--vscode-font-family)',
+                }}
+              >
+                {formatHistoryAgeAgo(parseIsoToMs(hoveredHistory.lastActivityAt))}
               </div>
             </div>
           </div>

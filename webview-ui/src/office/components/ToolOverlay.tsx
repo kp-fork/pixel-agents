@@ -125,17 +125,24 @@ export function ToolOverlay({
               <div
                 style={{
                   whiteSpace: 'nowrap',
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  letterSpacing: '0.2px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  opacity: 0.9,
+                }}
+              >
+                {title}
+              </div>
+              <div
+                style={{
+                  whiteSpace: 'nowrap',
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  letterSpacing: '0.1px',
                   color: 'var(--vscode-foreground)',
                   fontFamily: 'var(--vscode-font-family)',
                 }}
               >
                 {formatHistoryAgeAgo(history.lastActivityAt)}
-              </div>
-              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 }}>
-                {title}
               </div>
             </div>
           </div>
