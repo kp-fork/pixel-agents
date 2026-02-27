@@ -6,23 +6,35 @@ const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 
 /**
- * Copy assets folder to dist/assets
+ * Copy runtime assets to dist/assets.
+ * Source 1: webview-ui/public/assets (walls, floors, characters, default-layout)
+ * Source 2: assets/furniture (custom furniture catalog + PNGs)
  */
 function copyAssets() {
-	const srcDir = path.join(__dirname, 'webview-ui', 'public', 'assets');
 	const dstDir = path.join(__dirname, 'dist', 'assets');
+	const webviewAssetsDir = path.join(__dirname, 'webview-ui', 'public', 'assets');
+	const furnitureAssetsDir = path.join(__dirname, 'assets', 'furniture');
 
-	if (fs.existsSync(srcDir)) {
-		// Remove existing dist/assets if present
-		if (fs.existsSync(dstDir)) {
-			fs.rmSync(dstDir, { recursive: true });
-		}
+	// Remove existing dist/assets if present
+	if (fs.existsSync(dstDir)) {
+		fs.rmSync(dstDir, { recursive: true });
+	}
 
-		// Copy recursively
-		fs.cpSync(srcDir, dstDir, { recursive: true });
-		console.log('✓ Copied assets/ → dist/assets/');
+	// 1) Copy webview assets
+	if (fs.existsSync(webviewAssetsDir)) {
+		fs.cpSync(webviewAssetsDir, dstDir, { recursive: true });
+		console.log('✓ Copied webview assets → dist/assets/');
 	} else {
-		console.log('ℹ️  assets/ folder not found (optional)');
+		console.log('ℹ️  webview-ui/public/assets not found');
+	}
+
+	// 2) Copy furniture assets used by extension runtime loader
+	if (fs.existsSync(furnitureAssetsDir)) {
+		const furnitureDst = path.join(dstDir, 'furniture');
+		fs.cpSync(furnitureAssetsDir, furnitureDst, { recursive: true });
+		console.log('✓ Copied furniture assets → dist/assets/furniture/');
+	} else {
+		console.log('ℹ️  assets/furniture not found');
 	}
 }
 
