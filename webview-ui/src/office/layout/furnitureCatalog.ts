@@ -43,10 +43,10 @@ export const FURNITURE_CATALOG: CatalogEntryWithCategory[] = [
   { type: FurnitureType.BOOKSHELF,  label: 'Bookshelf',  footprintW: 1, footprintH: 2, sprite: BOOKSHELF_SPRITE,    isDesk: false, category: 'storage' },
   { type: FurnitureType.PLANT,      label: 'Plant',      footprintW: 1, footprintH: 1, sprite: PLANT_SPRITE,        isDesk: false, category: 'decor' },
   { type: FurnitureType.COOLER,     label: 'Cooler',     footprintW: 1, footprintH: 1, sprite: COOLER_SPRITE,       isDesk: false, category: 'misc' },
-  { type: FurnitureType.WHITEBOARD, label: 'Whiteboard', footprintW: 2, footprintH: 1, sprite: WHITEBOARD_SPRITE,   isDesk: false, category: 'decor' },
+  { type: FurnitureType.WHITEBOARD, label: 'Whiteboard', footprintW: 2, footprintH: 1, sprite: WHITEBOARD_SPRITE,   isDesk: false, category: 'decor', canPlaceOnWalls: true },
   { type: FurnitureType.CHAIR,      label: 'Chair',      footprintW: 1, footprintH: 1, sprite: CHAIR_SPRITE,        isDesk: false, category: 'chairs' },
-  { type: FurnitureType.PC,         label: 'PC',         footprintW: 1, footprintH: 1, sprite: PC_SPRITE,           isDesk: false, category: 'electronics' },
-  { type: FurnitureType.LAMP,       label: 'Lamp',       footprintW: 1, footprintH: 1, sprite: LAMP_SPRITE,         isDesk: false, category: 'decor' },
+  { type: FurnitureType.PC,         label: 'PC',         footprintW: 1, footprintH: 1, sprite: PC_SPRITE,           isDesk: false, category: 'electronics', canPlaceOnSurfaces: true },
+  { type: FurnitureType.LAMP,       label: 'Lamp',       footprintW: 1, footprintH: 1, sprite: LAMP_SPRITE,         isDesk: false, category: 'decor', canPlaceOnSurfaces: true },
 
 ]
 
@@ -85,8 +85,8 @@ let dynamicCategories: FurnitureCategory[] | null = null
 export function buildDynamicCatalog(assets: LoadedAssetData): boolean {
   if (!assets?.catalog || !assets?.sprites) return false
 
-  // Build all entries (including non-front variants)
-  const allEntries = assets.catalog.map((asset) => {
+  // Build custom entries (including non-front variants)
+  const customEntries = assets.catalog.map((asset) => {
     const sprite = assets.sprites[asset.id]
     if (!sprite) {
       console.warn(`No sprite data for asset ${asset.id}`)
@@ -107,7 +107,14 @@ export function buildDynamicCatalog(assets: LoadedAssetData): boolean {
     }
   }).filter((e): e is CatalogEntryWithCategory => e !== null)
 
-  if (allEntries.length === 0) return false
+  if (customEntries.length === 0) return false
+
+  // Preserve built-ins when custom assets are loaded unless overridden by type ID.
+  const customTypes = new Set(customEntries.map((entry) => entry.type))
+  const builtinEntries = FURNITURE_CATALOG
+    .filter((entry) => !customTypes.has(entry.type))
+    .map((entry) => ({ ...entry }))
+  const allEntries = [...builtinEntries, ...customEntries]
 
   // Build rotation groups from groupId + orientation metadata
   rotationGroups.clear()
