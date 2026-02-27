@@ -47,8 +47,8 @@
   --pixel-status-active: var(--vscode-charts-blue, #3794ff);
 
   /* ToolOverlay z-index layers */
-  --pixel-overlay-z: 100;
-  --pixel-overlay-selected-z: 110;
+  --pixel-overlay-z: 40;
+  --pixel-overlay-selected-z: 41;
   --pixel-controls-z: 50;
 }
 

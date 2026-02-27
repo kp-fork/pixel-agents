@@ -95,7 +95,7 @@ export function ToolOverlay({
 
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0
         const screenX = (deviceOffsetX + ch.x * zoom) / dpr
-        const screenY = (deviceOffsetY + (ch.y + sittingOffset - TOOL_OVERLAY_VERTICAL_OFFSET - 16) * zoom) / dpr
+        const screenY = (deviceOffsetY + (ch.y + sittingOffset - TOOL_OVERLAY_VERTICAL_OFFSET) * zoom) / dpr
 
         return (
           <div
@@ -103,7 +103,7 @@ export function ToolOverlay({
             style={{
               position: 'absolute',
               left: screenX,
-              top: screenY - 26,
+              top: screenY - 16,
               transform: 'translateX(-50%)',
               pointerEvents: 'none',
               zIndex: 'var(--pixel-overlay-z)',
@@ -122,7 +122,18 @@ export function ToolOverlay({
                 textAlign: 'right',
               }}
             >
-              <div style={{ whiteSpace: 'nowrap', fontSize: '16px' }}>{formatHistoryAgeAgo(history.lastActivityAt)}</div>
+              <div
+                style={{
+                  whiteSpace: 'nowrap',
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  letterSpacing: '0.2px',
+                  color: 'var(--vscode-foreground)',
+                  fontFamily: 'var(--vscode-font-family)',
+                }}
+              >
+                {formatHistoryAgeAgo(history.lastActivityAt)}
+              </div>
               <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 }}>
                 {title}
               </div>
