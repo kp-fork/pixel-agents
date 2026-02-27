@@ -49,19 +49,14 @@ function parseIsoToMs(iso: string): number {
   return Number.isFinite(ms) ? ms : 0
 }
 
-function formatAgeShort(targetMs: number): string {
+function formatHistoryAgeAgo(targetMs: number): string {
   if (!Number.isFinite(targetMs) || targetMs <= 0) return '-'
-  const diffSec = Math.max(0, Math.floor((Date.now() - targetMs) / 1000))
-  if (diffSec < 60) return `${diffSec}s`
-  const diffMin = Math.floor(diffSec / 60)
-  if (diffMin < 60) return `${diffMin}m`
-  const diffHour = Math.floor(diffMin / 60)
-  if (diffHour < 24) return `${diffHour}h`
-  const diffDay = Math.floor(diffHour / 24)
-  if (diffDay < 30) return `${diffDay}d`
-  const diffMon = Math.floor(diffDay / 30)
-  if (diffMon < 12) return `${diffMon}mo`
-  return `${Math.floor(diffMon / 12)}y`
+  const diffHours = Math.max(1, Math.floor((Date.now() - targetMs) / (1000 * 60 * 60)))
+  if (diffHours < 24) {
+    return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`
+  }
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`
 }
 
 function formatLocalTime(iso: string): string {
@@ -310,7 +305,7 @@ function App() {
           <div style={{ fontSize: '19px', color: 'var(--vscode-foreground)', marginBottom: 4 }}>
             <div style={{ textAlign: 'right' }}>
               <div style={{ color: 'var(--pixel-text-dim)', whiteSpace: 'nowrap', fontSize: '20px' }}>
-                -{formatAgeShort(parseIsoToMs(hoveredHistory.lastActivityAt))}
+                {formatHistoryAgeAgo(parseIsoToMs(hoveredHistory.lastActivityAt))}
               </div>
               <div style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {title}

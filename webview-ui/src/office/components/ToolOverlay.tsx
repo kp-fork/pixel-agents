@@ -1,27 +1,30 @@
 import { useState, useEffect } from 'react'
 import type { ToolActivity } from '../types.js'
 import type { OfficeState } from '../engine/officeState.js'
-import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js'
+import type { SubagentCharacter, HistorySessionCharacter } from '../../hooks/useExtensionMessages.js'
 import { TILE_SIZE, CharacterState } from '../types.js'
+import type { AgentId } from '../types.js'
 import { TOOL_OVERLAY_VERTICAL_OFFSET, CHARACTER_SITTING_OFFSET_PX } from '../../constants.js'
 import { isAlwaysStatusBubblesEnabled } from '../../speechBubbles.js'
 import { deriveOverlayState } from './toolOverlayState.js'
 
 interface ToolOverlayProps {
   officeState: OfficeState
-  agents: number[]
-  agentTools: Record<number, ToolActivity[]>
-  subagentTools: Record<number, Record<string, ToolActivity[]>>
+  agents: AgentId[]
+  historySessions: HistorySessionCharacter[]
+  agentTools: Record<string, ToolActivity[]>
+  subagentTools: Record<string, Record<string, ToolActivity[]>>
   subagentCharacters: SubagentCharacter[]
   containerRef: React.RefObject<HTMLDivElement | null>
   zoom: number
   panRef: React.RefObject<{ x: number; y: number }>
-  onCloseAgent: (id: number) => void
+  onCloseAgent: (id: AgentId) => void
 }
 
 export function ToolOverlay({
   officeState,
   agents,
+  historySessions,
   agentTools,
   subagentTools,
   subagentCharacters,
@@ -31,6 +34,24 @@ export function ToolOverlay({
   onCloseAgent,
 }: ToolOverlayProps) {
   const showBubbles = isAlwaysStatusBubblesEnabled()
+
+  const formatHistoryAgeAgo = (iso: string): string => {
+    const ms = Date.parse(iso)
+    if (!Number.isFinite(ms)) return '-'
+    const diffHours = Math.max(1, Math.floor((Date.now() - ms) / (1000 * 60 * 60)))
+    if (diffHours < 24) {
+      return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`
+    }
+    const diffDays = Math.floor(diffHours / 24)
+    return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`
+  }
+
+  const toTitleSnippet = (preview: string, sessionId: string): string => {
+    const base = (preview || '').replace(/\s+/g, ' ').trim() || sessionId
+    const maxLen = 22
+    if (base.length <= maxLen) return base
+    return `${base.slice(0, maxLen - 1)}…`
+  }
 
   const [, setTick] = useState(0)
   useEffect(() => {
@@ -59,11 +80,58 @@ export function ToolOverlay({
   // All character IDs
   const allIds = [...agents, ...subagentCharacters.map((s) => s.id)]
 
-  if (!showBubbles) return null
+  const historyById = new Map(historySessions.map((s) => [s.id, s]))
+  const historyIds = historySessions.map((s) => s.id)
+  if (!showBubbles && historyIds.length === 0) return null
 
   return (
     <>
-      {allIds.map((id) => {
+      {historyIds.map((id) => {
+        const ch = officeState.characters.get(id)
+        if (!ch || !ch.isHistorical) return null
+        const history = historyById.get(id)
+        if (!history) return null
+        const title = toTitleSnippet(history.preview, history.sessionId)
+
+        const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0
+        const screenX = (deviceOffsetX + ch.x * zoom) / dpr
+        const screenY = (deviceOffsetY + (ch.y + sittingOffset - TOOL_OVERLAY_VERTICAL_OFFSET - 16) * zoom) / dpr
+
+        return (
+          <div
+            key={`history-age-${id}`}
+            style={{
+              position: 'absolute',
+              left: screenX,
+              top: screenY - 26,
+              transform: 'translateX(-50%)',
+              pointerEvents: 'none',
+              zIndex: 'var(--pixel-overlay-z)',
+            }}
+          >
+            <div
+              style={{
+                background: 'rgba(18, 18, 26, 0.88)',
+                border: '1px solid rgba(255, 255, 255, 0.22)',
+                padding: '2px 6px',
+                lineHeight: 1.25,
+                color: 'var(--pixel-text-dim)',
+                fontSize: '15px',
+                minWidth: 170,
+                maxWidth: 210,
+                textAlign: 'right',
+              }}
+            >
+              <div style={{ whiteSpace: 'nowrap', fontSize: '16px' }}>{formatHistoryAgeAgo(history.lastActivityAt)}</div>
+              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 }}>
+                {title}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+
+      {showBubbles && allIds.map((id) => {
         const ch = officeState.characters.get(id)
         if (!ch) return null
 
