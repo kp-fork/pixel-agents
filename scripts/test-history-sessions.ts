@@ -44,6 +44,26 @@ function writeSnapshotOnlyJsonl(dir: string, sessionId: string, daysAgo: number)
   return filePath;
 }
 
+function writeJsonlWithTaggedPreview(dir: string, sessionId: string, daysAgo: number): string {
+  const filePath = path.join(dir, `${sessionId}.jsonl`);
+  const now = Date.now();
+  const ts = new Date(now - (daysAgo * 24 * 60 * 60 * 1000));
+  const iso = ts.toISOString();
+  const line = JSON.stringify({
+    type: 'user',
+    isSidechain: false,
+    isMeta: false,
+    sessionId,
+    timestamp: iso,
+    message: {
+      content: '<local-command-stdout>build passed</local-command-stdout>',
+    },
+  });
+  fs.writeFileSync(filePath, `${line}\n`, 'utf-8');
+  fs.utimesSync(filePath, ts, ts);
+  return filePath;
+}
+
 function mkSessionId(seed: string): string {
   const clean = seed.replace(/[^0-9a-f]/gi, '').padEnd(32, '0').slice(0, 32).toLowerCase();
   return `${clean.slice(0, 8)}-${clean.slice(8, 12)}-${clean.slice(12, 16)}-${clean.slice(16, 20)}-${clean.slice(20)}`;
@@ -58,6 +78,7 @@ async function main(): Promise<void> {
     const s4 = mkSessionId('44444444444444444444444444444444');
     const s5 = mkSessionId('55555555555555555555555555555555');
     const s6 = mkSessionId('66666666666666666666666666666666');
+    const s7 = mkSessionId('77777777777777777777777777777777');
 
     const recentLive = writeJsonl(tempRoot, s1, 0);
     writeJsonl(tempRoot, s2, 1);
@@ -65,6 +86,7 @@ async function main(): Promise<void> {
     writeJsonl(tempRoot, s4, 8);
     writeTeamJsonl(tempRoot, s5, 1);
     writeSnapshotOnlyJsonl(tempRoot, s6, 1);
+    writeJsonlWithTaggedPreview(tempRoot, s7, 1);
 
     const recent = collectHistorySessions(
       tempRoot,
@@ -72,11 +94,23 @@ async function main(): Promise<void> {
       { enabled: true, lookbackDays: 3, maxVisible: 10 },
     );
 
-    assert(recent.length === 2, `expected 2 recent sessions, got ${recent.length}`);
+    assert(recent.length === 3, `expected 3 recent sessions, got ${recent.length}`);
     assert(recent.every((s) => s.jsonlPath !== recentLive), 'live session path must be excluded');
-    assert(recent.every((s) => s.sessionId === s2 || s.sessionId === s3), 'unexpected session IDs in result');
+    assert(
+      recent.every((s) => s.sessionId === s2 || s.sessionId === s3 || s.sessionId === s7),
+      'unexpected session IDs in result',
+    );
     assert(recent.every((s) => s.sessionId !== s5), 'team/subagent session must be excluded');
     assert(recent.every((s) => s.sessionId !== s6), 'snapshot-only session must be excluded');
+
+    const withPreview = collectHistorySessions(
+      tempRoot,
+      [],
+      { enabled: true, lookbackDays: 30, maxVisible: 10 },
+    );
+    const tagged = withPreview.find((s) => s.sessionId === s7);
+    assert(!!tagged, 'expected tagged preview session to be present');
+    assert(tagged!.preview === 'build passed', `expected stripped tagged preview, got "${tagged!.preview}"`);
 
     const capped = collectHistorySessions(
       tempRoot,

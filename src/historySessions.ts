@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export interface HistorySessionRecord {
-	id: number;
+	id: string;
 	sessionId: string;
 	jsonlPath: string;
 	createdAtMs: number;
@@ -59,16 +59,6 @@ function sessionIdFromJsonlPath(jsonlPath: string): string {
 	return looksLikeSessionId(sessionId) ? sessionId.toLowerCase() : '';
 }
 
-function stableHistoryId(sessionId: string): number {
-	let hash = 0;
-	for (let i = 0; i < sessionId.length; i++) {
-		hash = ((hash << 5) - hash + sessionId.charCodeAt(i)) | 0;
-	}
-	const positive = Math.abs(hash);
-	// Keep history IDs far from live IDs/subagent IDs.
-	return 1_000_000 + (positive % 100_000_000);
-}
-
 function readFilePrefix(filePath: string, maxBytes: number): string {
 	let fd: number | undefined;
 	try {
@@ -117,7 +107,14 @@ function parseTimestampMs(value: unknown): number {
 }
 
 function normalizePreviewText(input: string): string {
-	return input.replace(/\s+/g, ' ').trim();
+	return stripNonUserFacingCommandTags(input).replace(/\s+/g, ' ').trim();
+}
+
+function stripNonUserFacingCommandTags(input: string): string {
+	return input
+		.replace(/<\/?local-command-stdout\b[^>]*>/gi, ' ')
+		.replace(/<\/?local-command-stderr\b[^>]*>/gi, ' ')
+		.replace(/<\/>/g, ' ');
 }
 
 function truncatePreview(text: string, maxLen: number): string {
@@ -343,7 +340,7 @@ export function collectHistorySessions(
 		if (!Number.isFinite(lastActivityAtMs) || lastActivityAtMs < thresholdMs) continue;
 
 		records.push({
-			id: stableHistoryId(sessionId),
+			id: sessionId,
 			sessionId,
 			jsonlPath,
 			createdAtMs,
@@ -354,17 +351,5 @@ export function collectHistorySessions(
 
 	records.sort((a, b) => b.lastActivityAtMs - a.lastActivityAtMs);
 
-	const deduped: HistorySessionRecord[] = [];
-	const usedIds = new Set<number>();
-	for (const record of records) {
-		let nextId = record.id;
-		while (usedIds.has(nextId)) {
-			nextId += 1;
-		}
-		usedIds.add(nextId);
-		deduped.push({ ...record, id: nextId });
-		if (deduped.length >= maxVisible) break;
-	}
-
-	return deduped;
+	return records.slice(0, maxVisible);
 }
