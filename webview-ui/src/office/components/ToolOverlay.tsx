@@ -127,6 +127,7 @@ export function ToolOverlay({
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
+                  fontSize: '13px',
                   opacity: 0.9,
                 }}
               >

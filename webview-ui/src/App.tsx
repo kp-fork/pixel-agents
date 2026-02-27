@@ -304,7 +304,7 @@ function App() {
         >
           <div style={{ fontSize: '19px', color: 'var(--vscode-foreground)', marginBottom: 4 }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '18px', color: 'var(--pixel-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: '13px', color: 'var(--pixel-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {title}
               </div>
               <div
