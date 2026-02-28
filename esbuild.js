@@ -1,6 +1,7 @@
 const esbuild = require("esbuild");
 const fs = require("fs");
 const path = require("path");
+const CHAR_COUNT = 6;
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -10,6 +11,62 @@ const watch = process.argv.includes('--watch');
  * Source 1: webview-ui/public/assets (walls, floors, characters, default-layout)
  * Source 2: assets/furniture (custom furniture catalog + PNGs)
  */
+function buildBundledDefaultPack(dstDir, webviewAssetsDir, furnitureAssetsDir) {
+	const layoutSrc = path.join(webviewAssetsDir, 'default-layout.json');
+	const charsDirSrc = path.join(webviewAssetsDir, 'characters');
+	const catalogSrc = path.join(furnitureAssetsDir, 'furniture-catalog.json');
+	const customDirSrc = path.join(furnitureAssetsDir, 'custom');
+	if (!fs.existsSync(layoutSrc) || !fs.existsSync(catalogSrc)) {
+		console.log('ℹ️  Skipping bundled default pack (missing default-layout or furniture catalog)');
+		return;
+	}
+
+	const packRoot = path.join(dstDir, 'packs', 'default');
+	if (fs.existsSync(packRoot)) {
+		fs.rmSync(packRoot, { recursive: true, force: true });
+	}
+
+	fs.mkdirSync(path.join(packRoot, 'layouts'), { recursive: true });
+	fs.mkdirSync(path.join(packRoot, 'assets', 'furniture', 'custom'), { recursive: true });
+
+	fs.copyFileSync(layoutSrc, path.join(packRoot, 'layouts', 'default-layout.json'));
+	fs.copyFileSync(catalogSrc, path.join(packRoot, 'assets', 'furniture', 'furniture-catalog.json'));
+	if (fs.existsSync(customDirSrc)) {
+		fs.cpSync(customDirSrc, path.join(packRoot, 'assets', 'furniture', 'custom'), { recursive: true });
+	}
+	let hasChars = false;
+	if (fs.existsSync(charsDirSrc)) {
+		let present = 0;
+		for (let i = 0; i < CHAR_COUNT; i++) {
+			if (fs.existsSync(path.join(charsDirSrc, `char_${i}.png`))) {
+				present++;
+			}
+		}
+		if (present === CHAR_COUNT) {
+			hasChars = true;
+		} else if (present > 0) {
+			console.log(`ℹ️  Skipping character sprites in default pack (incomplete set ${present}/${CHAR_COUNT})`);
+		}
+	}
+	if (hasChars) {
+		fs.cpSync(charsDirSrc, path.join(packRoot, 'assets', 'characters'), { recursive: true });
+	}
+
+	const manifest = {
+		packVersion: 1,
+		id: 'pixel-agents.default-layout.v1',
+		name: 'Pixel Agents Default Pack',
+		description: 'Bundled default pack generated at build time',
+		author: 'pixel-agents',
+		createdAt: new Date().toISOString(),
+		entryLayout: 'layouts/default-layout.json',
+		furnitureCatalog: 'assets/furniture/furniture-catalog.json',
+		characterSpritesDir: hasChars ? 'assets/characters' : undefined,
+	};
+	fs.writeFileSync(path.join(packRoot, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
+	console.log('✓ Built bundled default pack → dist/assets/packs/default/');
+}
+
 function copyAssets() {
 	const dstDir = path.join(__dirname, 'dist', 'assets');
 	const webviewAssetsDir = path.join(__dirname, 'webview-ui', 'public', 'assets');
@@ -36,6 +93,9 @@ function copyAssets() {
 	} else {
 		console.log('ℹ️  assets/furniture not found');
 	}
+
+	// 3) Build bundled default pack for first-run bootstrapping
+	buildBundledDefaultPack(dstDir, webviewAssetsDir, furnitureAssetsDir);
 }
 
 /**

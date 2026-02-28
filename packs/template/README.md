@@ -6,6 +6,7 @@
 2. `layouts/default-layout.json`
 3. `assets/furniture/furniture-catalog.json`
 4. `assets/furniture/custom/*.png` (if catalog has assets)
+5. `assets/characters/char_0.png` ... `char_5.png` (optional, for theme-specific avatars)
 
 ## Rules
 

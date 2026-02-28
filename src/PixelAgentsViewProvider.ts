@@ -297,14 +297,22 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 									this.defaultLayout = loadDefaultLayout(visualAssetsRoot);
 								}
 
-								// Load visual sprites (character/floor/wall) from bundled/workspace assets.
-								if (visualAssetsRoot) {
-									const charSprites = await loadCharacterSprites(visualAssetsRoot);
+								// Load character sprites from content root first (pack can override), then visual root fallback.
+								{
+									const charSprites = (contentAssetsRoot
+										? await loadCharacterSprites(contentAssetsRoot)
+										: null)
+										|| ((visualAssetsRoot && visualAssetsRoot !== contentAssetsRoot)
+											? await loadCharacterSprites(visualAssetsRoot)
+											: null);
 									if (charSprites && this.webview) {
 										console.log('[Extension] Character sprites loaded, sending to webview');
 										sendCharacterSpritesToWebview(this.webview, charSprites);
 									}
+								}
 
+								// Load visual tiles (floor/wall) from bundled/workspace assets.
+								if (visualAssetsRoot) {
 									const floorTiles = await loadFloorTiles(visualAssetsRoot);
 									if (floorTiles && this.webview) {
 										console.log('[Extension] Floor tiles loaded, sending to webview');
@@ -360,7 +368,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 									}
 
 									this.defaultLayout = loadDefaultLayout(installedPackRoot || distRoot);
-									const cs = await loadCharacterSprites(distRoot);
+									const cs = (installedPackRoot
+										? await loadCharacterSprites(installedPackRoot)
+										: null)
+										|| await loadCharacterSprites(distRoot);
 									if (cs && this.webview) {
 										sendCharacterSpritesToWebview(this.webview, cs);
 									}

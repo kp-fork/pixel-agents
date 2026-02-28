@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const CHAR_COUNT = 6;
 
 function usage() {
 	console.error('Usage: npm run build:pack -- <src-dir> <output-dir>');
@@ -57,6 +58,19 @@ function validatePackSource(srcDir) {
 	}
 	if (!fs.existsSync(furnitureCatalog)) {
 		fail(`furnitureCatalog file not found: ${manifest.furnitureCatalog}`);
+	}
+
+	if (typeof manifest.characterSpritesDir === 'string' && manifest.characterSpritesDir.trim()) {
+		const charDir = resolveInside(srcDir, manifest.characterSpritesDir.trim());
+		if (!fs.existsSync(charDir) || !fs.statSync(charDir).isDirectory()) {
+			fail(`characterSpritesDir not found: ${manifest.characterSpritesDir}`);
+		}
+		for (let i = 0; i < CHAR_COUNT; i++) {
+			const filePath = path.join(charDir, `char_${i}.png`);
+			if (!fs.existsSync(filePath)) {
+				fail(`missing character sprite: ${manifest.characterSpritesDir}/char_${i}.png`);
+			}
+		}
 	}
 }
 

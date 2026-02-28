@@ -68,10 +68,10 @@ Outputs:
 ## Use a pack in extension
 
 1. Open Pixel Agents panel.
-2. `Settings` -> `Import Pack (.zip)`.
+2. `Layout` -> `From Pack (.zip)`.
 3. Select one of `packs/*.pack.zip`.
 4. Extension validates and installs it to `~/.pixel-agents/pack-current`.
-5. Layout and furniture assets are applied immediately.
+5. Layout, furniture, and optional character sprites are applied immediately.
 
 ## Runtime notes
 
@@ -87,6 +87,7 @@ Outputs:
 - `name` (string)
 - `entryLayout` (relative path)
 - `furnitureCatalog` (relative path)
+- `characterSpritesDir` (optional, relative path)
 
 Canonical pack root:
 
@@ -95,4 +96,5 @@ manifest.json
 layouts/default-layout.json
 assets/furniture/furniture-catalog.json
 assets/furniture/custom/*.png
+assets/characters/char_0.png ... char_5.png (optional)
 ```

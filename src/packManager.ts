@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { execFile } from 'child_process';
+import { CHAR_COUNT } from './constants.js';
 
 export interface PackManifest {
 	packVersion: number;
@@ -12,6 +13,7 @@ export interface PackManifest {
 	createdAt?: string;
 	entryLayout: string;
 	furnitureCatalog: string;
+	characterSpritesDir?: string;
 }
 
 export interface AppliedPack {
@@ -111,6 +113,7 @@ function validateManifest(raw: unknown): PackManifest {
 	const name = typeof obj.name === 'string' ? obj.name.trim() : '';
 	const entryLayout = typeof obj.entryLayout === 'string' ? obj.entryLayout.trim() : '';
 	const furnitureCatalog = typeof obj.furnitureCatalog === 'string' ? obj.furnitureCatalog.trim() : '';
+	const characterSpritesDir = typeof obj.characterSpritesDir === 'string' ? obj.characterSpritesDir.trim() : '';
 	if (!id || !name || !entryLayout || !furnitureCatalog) {
 		throw new Error('Manifest missing required keys: id/name/entryLayout/furnitureCatalog');
 	}
@@ -123,6 +126,7 @@ function validateManifest(raw: unknown): PackManifest {
 		createdAt: typeof obj.createdAt === 'string' ? obj.createdAt : undefined,
 		entryLayout,
 		furnitureCatalog,
+		characterSpritesDir: characterSpritesDir || undefined,
 	};
 }
 
@@ -137,6 +141,46 @@ function resolveAssetSourcePath(packRoot: string, fileField: string): string {
 	throw new Error(`Missing asset file in pack: ${fileField}`);
 }
 
+function resolveCharacterSpriteSourcePaths(packRoot: string, characterSpritesDir: string): string[] {
+	const dirPath = resolveInside(packRoot, characterSpritesDir);
+	if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
+		throw new Error(`Character sprites directory not found: ${characterSpritesDir}`);
+	}
+	const files: string[] = [];
+	for (let i = 0; i < CHAR_COUNT; i++) {
+		const filePath = path.join(dirPath, `char_${i}.png`);
+		if (!fs.existsSync(filePath)) {
+			throw new Error(`Missing character sprite in pack: ${characterSpritesDir}/char_${i}.png`);
+		}
+		files.push(filePath);
+	}
+	return files;
+}
+
+function findCharacterSpritesForExport(sourceAssetsRoot: string): string[] | null {
+	const dirPath = path.join(sourceAssetsRoot, 'assets', 'characters');
+	if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
+		return null;
+	}
+	let present = 0;
+	for (let i = 0; i < CHAR_COUNT; i++) {
+		if (fs.existsSync(path.join(dirPath, `char_${i}.png`))) {
+			present++;
+		}
+	}
+	if (present === 0) {
+		return null;
+	}
+	if (present !== CHAR_COUNT) {
+		throw new Error(`Character sprite set is incomplete in assets/characters (expected ${CHAR_COUNT} files, found ${present})`);
+	}
+	const files: string[] = [];
+	for (let i = 0; i < CHAR_COUNT; i++) {
+		files.push(path.join(dirPath, `char_${i}.png`));
+	}
+	return files;
+}
+
 function installPackFromExtracted(
 	packRoot: string,
 	manifest: PackManifest,
@@ -144,6 +188,7 @@ function installPackFromExtracted(
 	catalogPath: string,
 	layout: Record<string, unknown>,
 	catalog: { assets?: Array<{ file?: string }> },
+	characterSpritePaths: string[] | null,
 ): string {
 	fs.mkdirSync(PACK_HOME_DIR, { recursive: true });
 	const stageDir = path.join(PACK_HOME_DIR, `pack-stage-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`);
@@ -169,6 +214,14 @@ function installPackFromExtracted(
 		const destination = path.join(stageDir, normalized.replace(/\\/g, '/'));
 		fs.mkdirSync(path.dirname(destination), { recursive: true });
 		fs.copyFileSync(sourceFile, destination);
+	}
+
+	if (characterSpritePaths && characterSpritePaths.length > 0) {
+		const targetDir = path.join(stageDir, 'assets', 'characters');
+		fs.mkdirSync(targetDir, { recursive: true });
+		for (let i = 0; i < characterSpritePaths.length; i++) {
+			fs.copyFileSync(characterSpritePaths[i], path.join(targetDir, `char_${i}.png`));
+		}
 	}
 
 	const backupDir = `${ACTIVE_PACK_DIR}.bak`;
@@ -233,6 +286,10 @@ function applyPackRoot(packRoot: string): AppliedPack {
 		resolveAssetSourcePath(packRoot, fileField);
 	}
 
+	const characterSpritePaths = manifest.characterSpritesDir
+		? resolveCharacterSpriteSourcePaths(packRoot, manifest.characterSpritesDir)
+		: null;
+
 	const installedRoot = installPackFromExtracted(
 		packRoot,
 		manifest,
@@ -240,6 +297,7 @@ function applyPackRoot(packRoot: string): AppliedPack {
 		catalogPath,
 		layout,
 		catalog,
+		characterSpritePaths,
 	);
 
 	return {
@@ -337,6 +395,15 @@ export async function exportPackZip(options: ExportPackOptions): Promise<void> {
 			fs.copyFileSync(sourceFile, destination);
 		}
 
+		const characterSpritePaths = findCharacterSpritesForExport(sourceAssetsRoot);
+		if (characterSpritePaths && characterSpritePaths.length > 0) {
+			const charsDir = path.join(stageRoot, 'assets', 'characters');
+			fs.mkdirSync(charsDir, { recursive: true });
+			for (let i = 0; i < characterSpritePaths.length; i++) {
+				fs.copyFileSync(characterSpritePaths[i], path.join(charsDir, `char_${i}.png`));
+			}
+		}
+
 		const manifest: PackManifest = {
 			packVersion: 1,
 			id: packId,
@@ -346,6 +413,7 @@ export async function exportPackZip(options: ExportPackOptions): Promise<void> {
 			createdAt,
 			entryLayout: 'layouts/default-layout.json',
 			furnitureCatalog: 'assets/furniture/furniture-catalog.json',
+			characterSpritesDir: characterSpritePaths ? 'assets/characters' : undefined,
 		};
 		fs.writeFileSync(path.join(stageRoot, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
 
