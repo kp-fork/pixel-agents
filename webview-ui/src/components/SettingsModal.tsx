@@ -13,7 +13,6 @@ interface SettingsModalProps {
   onClose: () => void
   isDebugMode: boolean
   onToggleDebugMode: () => void
-  onExportLayout: () => void
   historySessionsEnabled: boolean
   onToggleHistorySessions: (enabled: boolean) => void
 }
@@ -24,7 +23,7 @@ const menuItemBase: React.CSSProperties = {
   justifyContent: 'space-between',
   width: '100%',
   padding: '6px 10px',
-  fontSize: '24px',
+  fontSize: 'var(--pixel-font-lg)',
   color: 'rgba(255, 255, 255, 0.8)',
   background: 'transparent',
   border: 'none',
@@ -38,7 +37,6 @@ export function SettingsModal({
   onClose,
   isDebugMode,
   onToggleDebugMode,
-  onExportLayout,
   historySessionsEnabled,
   onToggleHistorySessions,
 }: SettingsModalProps) {
@@ -100,7 +98,7 @@ export function SettingsModal({
             marginBottom: '4px',
           }}
         >
-          <span style={{ fontSize: '24px', color: 'rgba(255, 255, 255, 0.9)' }}>Settings</span>
+          <span style={{ fontSize: 'var(--pixel-font-lg)', color: 'rgba(255, 255, 255, 0.9)' }}>Settings</span>
           <button
             onClick={onClose}
             onMouseEnter={() => setHovered('close')}
@@ -110,7 +108,7 @@ export function SettingsModal({
               border: 'none',
               borderRadius: 0,
               color: 'rgba(255, 255, 255, 0.6)',
-              fontSize: '24px',
+              fontSize: 'var(--pixel-font-lg)',
               cursor: 'pointer',
               padding: '0 4px',
               lineHeight: 1,
@@ -133,48 +131,6 @@ export function SettingsModal({
           }}
         >
           Open Sessions Folder
-        </button>
-        <button
-          onClick={() => {
-            onExportLayout()
-            onClose()
-          }}
-          onMouseEnter={() => setHovered('export')}
-          onMouseLeave={() => setHovered(null)}
-          style={{
-            ...menuItemBase,
-            background: hovered === 'export' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-          }}
-        >
-          Export Layout
-        </button>
-        <button
-          onClick={() => {
-            vscode.postMessage({ type: 'importLayout' })
-            onClose()
-          }}
-          onMouseEnter={() => setHovered('import')}
-          onMouseLeave={() => setHovered(null)}
-          style={{
-            ...menuItemBase,
-            background: hovered === 'import' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-          }}
-        >
-          Import Layout
-        </button>
-        <button
-          onClick={() => {
-            vscode.postMessage({ type: 'importPack' })
-            onClose()
-          }}
-          onMouseEnter={() => setHovered('import-pack')}
-          onMouseLeave={() => setHovered(null)}
-          style={{
-            ...menuItemBase,
-            background: hovered === 'import-pack' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-          }}
-        >
-          Import Pack (.zip)
         </button>
         <button
           onClick={() => {
@@ -201,7 +157,7 @@ export function SettingsModal({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '12px',
+              fontSize: 'var(--pixel-font-sm)',
               lineHeight: 1,
               color: '#fff',
             }}
@@ -235,7 +191,7 @@ export function SettingsModal({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '12px',
+              fontSize: 'var(--pixel-font-sm)',
               lineHeight: 1,
               color: '#fff',
             }}
@@ -269,7 +225,7 @@ export function SettingsModal({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '12px',
+              fontSize: 'var(--pixel-font-sm)',
               lineHeight: 1,
               color: '#fff',
             }}
@@ -303,7 +259,7 @@ export function SettingsModal({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '12px',
+              fontSize: 'var(--pixel-font-sm)',
               lineHeight: 1,
               color: '#fff',
             }}

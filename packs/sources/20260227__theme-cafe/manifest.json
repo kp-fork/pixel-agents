@@ -1,0 +1,10 @@
+{
+  "packVersion": 1,
+  "id": "kp.pixel-agents.layout.theme-cafe.v1",
+  "name": "Pixel Agents theme-cafe Pack",
+  "description": "Generated from docs/layouts/20260227__theme-cafe.json",
+  "author": "pixel-agents",
+  "createdAt": "2026-02-28T14:18:39Z",
+  "entryLayout": "layouts/default-layout.json",
+  "furnitureCatalog": "assets/furniture/furniture-catalog.json"
+}

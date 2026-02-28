@@ -1,0 +1,10 @@
+{
+  "packVersion": 1,
+  "id": "kp.pixel-agents.layout.cozy-house-dense.v1",
+  "name": "Pixel Agents cozy-house-dense Pack",
+  "description": "Generated from docs/layouts/20260227__cozy-house-dense.json",
+  "author": "pixel-agents",
+  "createdAt": "2026-02-28T14:18:39Z",
+  "entryLayout": "layouts/default-layout.json",
+  "furnitureCatalog": "assets/furniture/furniture-catalog.json"
+}

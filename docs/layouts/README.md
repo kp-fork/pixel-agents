@@ -38,5 +38,5 @@
 
 ## Pack 문서
 
-- Pack 구조 명세: `docs/packs/README.md`
-- Pack 템플릿: `docs/packs/template/`
+- Pack 구조 명세: `packs/README.md`
+- Pack 템플릿: `packs/template/`

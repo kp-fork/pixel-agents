@@ -29,7 +29,7 @@ function getOfficeState(): OfficeState {
 
 const actionBarBtnStyle: React.CSSProperties = {
   padding: '4px 10px',
-  fontSize: '22px',
+  fontSize: 'var(--pixel-font-md)',
   background: 'var(--pixel-btn-bg)',
   color: 'var(--pixel-text-dim)',
   border: '2px solid transparent',
@@ -77,29 +77,6 @@ function toHistoryTitleSnippet(preview: string, sessionId: string): string {
   const maxLen = 28
   if (base.length <= maxLen) return base
   return `${base.slice(0, maxLen - 1)}…`
-}
-
-function makeLayoutFilename(): string {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  const d = String(now.getDate()).padStart(2, '0')
-  const hh = String(now.getHours()).padStart(2, '0')
-  const mm = String(now.getMinutes()).padStart(2, '0')
-  const ss = String(now.getSeconds()).padStart(2, '0')
-  return `pixel-agents-layout-${y}${m}${d}-${hh}${mm}${ss}.json`
-}
-
-function downloadJson(filename: string, data: unknown): void {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
 }
 
 function EditActionBar({ editor, editorState: es }: { editor: ReturnType<typeof useEditorActions>; editorState: EditorState }) {
@@ -157,7 +134,7 @@ function EditActionBar({ editor, editorState: es }: { editor: ReturnType<typeof 
         </button>
       ) : (
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          <span style={{ fontSize: '22px', color: 'var(--pixel-reset-text)' }}>Reset?</span>
+          <span style={{ fontSize: 'var(--pixel-font-md)', color: 'var(--pixel-reset-text)' }}>Reset?</span>
           <button
             style={{ ...actionBarBtnStyle, background: 'var(--pixel-danger-bg)', color: '#fff' }}
             onClick={() => { setShowResetConfirm(false); editor.handleReset() }}
@@ -240,11 +217,6 @@ function App() {
     vscode.postMessage({ type: 'focusAgent', id: focusId })
   }, [historySessions])
 
-  const handleExportLayout = useCallback(() => {
-    const layout = getOfficeState().getLayout()
-    downloadJson(makeLayoutFilename(), layout)
-  }, [])
-
   const handleToggleHistorySessions = useCallback((enabled: boolean) => {
     vscode.postMessage({ type: 'setHistorySessionsEnabled', enabled })
   }, [])
@@ -316,7 +288,7 @@ function App() {
             right: 10,
             top: 10,
             zIndex: 'var(--pixel-controls-z)',
-            background: 'var(--pixel-bg)',
+            background: 'var(--pixel-hover-card-bg)',
             border: '2px solid var(--pixel-border)',
             boxShadow: 'var(--pixel-shadow)',
             padding: '8px 10px',
@@ -324,13 +296,13 @@ function App() {
             pointerEvents: 'none',
           }}
         >
-          <div style={{ fontSize: '19px', color: 'var(--vscode-foreground)', marginBottom: 4 }}>
-            <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 'var(--pixel-font-sm)', color: 'var(--vscode-foreground)', marginBottom: 4 }}>
+            <div style={{ textAlign: 'left' }}>
               <div
                 style={{
-                  fontSize: '15px',
+                  fontSize: 'var(--pixel-font-md)',
                   color: 'var(--vscode-foreground)',
-                  fontWeight: 600,
+                  fontWeight: 'var(--pixel-font-weight)',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -341,9 +313,9 @@ function App() {
               <div
                 style={{
                   whiteSpace: 'nowrap',
-                  fontSize: '10px',
-                  fontWeight: 400,
-                  letterSpacing: '0.1px',
+                  fontSize: 'var(--pixel-font-xxs)',
+                  fontWeight: 'var(--pixel-font-weight)',
+                  letterSpacing: 'var(--pixel-letter-spacing)',
                   color: 'var(--vscode-foreground)',
                   fontFamily: 'var(--vscode-font-family)',
                 }}
@@ -352,13 +324,13 @@ function App() {
               </div>
             </div>
           </div>
-          <div style={{ fontSize: '16px', color: 'var(--pixel-text-dim)', marginBottom: 4 }}>
+          <div style={{ fontSize: 'var(--pixel-font-sm)', color: 'var(--pixel-text-dim)', marginBottom: 4 }}>
             Last active: {formatDateTimeCompact(hoveredHistory.lastActivityAt)}
           </div>
-          <div style={{ fontSize: '16px', color: 'var(--pixel-text-dim)', marginBottom: 6 }}>
+          <div style={{ fontSize: 'var(--pixel-font-sm)', color: 'var(--pixel-text-dim)', marginBottom: 6 }}>
             Created: {formatDateTimeCompact(hoveredHistory.createdAt)}
           </div>
-          <div style={{ fontSize: '18px', color: 'var(--vscode-foreground)', whiteSpace: 'pre-wrap', lineHeight: 1.3 }}>
+          <div style={{ fontSize: 'var(--pixel-font-sm)', color: 'var(--vscode-foreground)', whiteSpace: 'pre-wrap', lineHeight: 1.3 }}>
             {hoveredHistory.preview || '(No preview text)'}
           </div>
         </div>
@@ -382,7 +354,6 @@ function App() {
         onToggleEditMode={editor.handleToggleEditMode}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
-        onExportLayout={handleExportLayout}
         historySessionsEnabled={historySessionsEnabled}
         onToggleHistorySessions={handleToggleHistorySessions}
       />
@@ -401,7 +372,7 @@ function App() {
             zIndex: 49,
             background: 'var(--pixel-hint-bg)',
             color: '#fff',
-            fontSize: '20px',
+            fontSize: 'var(--pixel-font-sm)',
             padding: '3px 8px',
             borderRadius: 0,
             border: '2px solid var(--pixel-accent)',

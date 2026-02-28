@@ -16,7 +16,12 @@
 ## Build ZIP
 
 ```bash
-cd docs/packs/template
-zip -r ../../sample-pack.zip .
+cd packs/template
+zip -r ../sample-pack.zip .
 ```
 
+Or use the project command:
+
+```bash
+npm run build:pack -- packs/template packs
+```

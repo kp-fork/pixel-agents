@@ -56,8 +56,13 @@
       "properties": {
         "pixel-agents.claudeLaunchCommand": {
           "type": "string",
-          "default": "claude --session-id {sessionId}",
-          "description": "Command used when creating a new Claude terminal. Supported placeholders: {sessionId}, ${sessionId}, $SESSION_ID, %SESSION_ID%. If no placeholder is present, --session-id <id> is appended automatically."
+          "default": "claude",
+          "description": "Command used when creating a new Claude terminal. Session ID placeholders are optional and not required for new sessions."
+        },
+        "pixel-agents.claudeResumeCommand": {
+          "type": "string",
+          "default": "claude --resume {sessionId}",
+          "description": "Command used when opening a history session character. Supported placeholders: {sessionId}, ${sessionId}, $SESSION_ID, %SESSION_ID%. If no placeholder is present, --resume <id> is appended automatically."
         },
         "pixel-agents.historySessions.enabled": {
           "type": "boolean",
@@ -93,6 +98,10 @@
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "package": "npm run check-types && npm run lint && node esbuild.js --production && npm run build:webview",
+    "package:vsix": "npx @vscode/vsce package --out pixel-agents-local.vsix",
+    "install:vsix": "code --install-extension pixel-agents-local.vsix --force",
+    "reinstall:vsix": "npm run package:vsix && npm run install:vsix",
+    "build:pack": "node scripts/build-pack.js",
     "check-types": "npm-run-all check-types:*",
     "check-types:root": "tsc --noEmit --project tsconfig.json",
     "check-types:packages": "tsc --noEmit --project tsconfig.packages.json",

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { SettingsModal } from './SettingsModal.js'
+import { LayoutModal } from './LayoutModal.js'
 
 interface BottomToolbarProps {
   isEditMode: boolean
@@ -7,7 +8,8 @@ interface BottomToolbarProps {
   onToggleEditMode: () => void
   isDebugMode: boolean
   onToggleDebugMode: () => void
-  onExportLayout: () => void
+  historySessionsEnabled: boolean
+  onToggleHistorySessions: (enabled: boolean) => void
 }
 
 const panelStyle: React.CSSProperties = {
@@ -27,7 +29,7 @@ const panelStyle: React.CSSProperties = {
 
 const btnBase: React.CSSProperties = {
   padding: '5px 10px',
-  fontSize: '24px',
+  fontSize: 'var(--pixel-font-lg)',
   color: 'var(--pixel-text)',
   background: 'var(--pixel-btn-bg)',
   border: '2px solid transparent',
@@ -48,9 +50,11 @@ export function BottomToolbar({
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
-  onExportLayout,
+  historySessionsEnabled,
+  onToggleHistorySessions,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
+  const [isLayoutOpen, setIsLayoutOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   return (
@@ -73,24 +77,40 @@ export function BottomToolbar({
         + Agent
       </button>
       <button
-        onClick={onToggleEditMode}
+        onClick={() => {
+          setIsLayoutOpen((v) => {
+            const next = !v
+            if (next) setIsSettingsOpen(false)
+            return next
+          })
+        }}
         onMouseEnter={() => setHovered('edit')}
         onMouseLeave={() => setHovered(null)}
         style={
-          isEditMode
+          isEditMode || isLayoutOpen
             ? { ...btnActive }
             : {
                 ...btnBase,
                 background: hovered === 'edit' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
               }
         }
-        title="Edit office layout"
+        title="Layout menu"
       >
         Layout
       </button>
+      <LayoutModal
+        isOpen={isLayoutOpen}
+        onClose={() => setIsLayoutOpen(false)}
+        isEditMode={isEditMode}
+        onToggleEditMode={onToggleEditMode}
+      />
       <div style={{ position: 'relative' }}>
         <button
-          onClick={() => setIsSettingsOpen((v) => !v)}
+          onClick={() => setIsSettingsOpen((v) => {
+            const next = !v
+            if (next) setIsLayoutOpen(false)
+            return next
+          })}
           onMouseEnter={() => setHovered('settings')}
           onMouseLeave={() => setHovered(null)}
           style={
@@ -110,7 +130,8 @@ export function BottomToolbar({
           onClose={() => setIsSettingsOpen(false)}
           isDebugMode={isDebugMode}
           onToggleDebugMode={onToggleDebugMode}
-          onExportLayout={onExportLayout}
+          historySessionsEnabled={historySessionsEnabled}
+          onToggleHistorySessions={onToggleHistorySessions}
         />
       </div>
     </div>

@@ -65,6 +65,7 @@ export type WebviewToExtensionMessage =
 	| { type: 'openHistorySession'; historyId: string; sessionId: string; jsonlPath: string }
 	| { type: 'openExternal'; target: string }
 	| { type: 'exportLayout' }
+	| { type: 'exportPack' }
 	| { type: 'importPack' }
 	| { type: 'importLayout' };
 
