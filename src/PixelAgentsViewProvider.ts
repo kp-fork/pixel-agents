@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { AgentState } from './types.js';
+import type { AgentId, AgentState } from './types.js';
 import type { WebviewToExtensionMessage } from './contracts/messages.js';
 import { postToWebview } from './contracts/postMessage.js';
 import {
@@ -32,20 +32,19 @@ import type { LayoutWatcher } from './layoutPersistence.js';
 import { canResumeHistorySession, collectHistorySessions } from './historySessions.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
-	nextAgentId = { current: 1 };
 	nextTerminalIndex = { current: 1 };
-	agents = new Map<number, AgentState>();
+	agents = new Map<AgentId, AgentState>();
 	webviewView: vscode.WebviewView | undefined;
 
 	// Per-agent timers
-	fileWatchers = new Map<number, fs.FSWatcher>();
-	pollingTimers = new Map<number, ReturnType<typeof setInterval>>();
-	waitingTimers = new Map<number, ReturnType<typeof setTimeout>>();
-	jsonlPollTimers = new Map<number, ReturnType<typeof setInterval>>();
-	permissionTimers = new Map<number, ReturnType<typeof setTimeout>>();
+	fileWatchers = new Map<AgentId, fs.FSWatcher>();
+	pollingTimers = new Map<AgentId, ReturnType<typeof setInterval>>();
+	waitingTimers = new Map<AgentId, ReturnType<typeof setTimeout>>();
+	jsonlPollTimers = new Map<AgentId, ReturnType<typeof setInterval>>();
+	permissionTimers = new Map<AgentId, ReturnType<typeof setTimeout>>();
 
 	// /clear detection: project-level scan for new JSONL files
-	activeAgentId = { current: null as number | null };
+	activeAgentId = { current: null as AgentId | null };
 	knownJsonlFiles = new Set<string>();
 	projectScanTimer = { current: null as ReturnType<typeof setInterval> | null };
 
@@ -68,6 +67,24 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	private persistAgents = (): void => {
 		persistAgents(this.agents, this.context);
 	};
+
+	private pushSettings(): void {
+		if (!this.webview) return;
+		const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
+		const speechBubblesEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SPEECH_BUBBLES_ENABLED, true);
+		const alwaysStatusBubblesEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_ALWAYS_STATUS_BUBBLES_ENABLED, speechBubblesEnabled);
+		const eventBubblesEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_EVENT_BUBBLES_ENABLED, true);
+		const config = vscode.workspace.getConfiguration('pixel-agents');
+		const historySessionsEnabled = config.get<boolean>('historySessions.enabled', HISTORY_SESSIONS_ENABLED_DEFAULT);
+		postToWebview(this.webview, {
+			type: 'settingsLoaded',
+			soundEnabled,
+			speechBubblesEnabled: alwaysStatusBubblesEnabled,
+			alwaysStatusBubblesEnabled,
+			eventBubblesEnabled,
+			historySessionsEnabled,
+		});
+	}
 
 	private sendHistorySessions(projectDir: string | null): void {
 		if (!this.webview) return;
@@ -117,7 +134,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.onDidReceiveMessage(async (message: WebviewToExtensionMessage) => {
 			if (message.type === 'openClaude') {
 				launchNewTerminal(
-					this.nextAgentId, this.nextTerminalIndex,
+					this.nextTerminalIndex,
 					this.agents, this.activeAgentId, this.knownJsonlFiles,
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 					this.jsonlPollTimers, this.projectScanTimer,
@@ -151,29 +168,29 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				this.context.globalState.update(GLOBAL_KEY_ALWAYS_STATUS_BUBBLES_ENABLED, message.enabled);
 				// Keep legacy key aligned for backward compatibility.
 				this.context.globalState.update(GLOBAL_KEY_SPEECH_BUBBLES_ENABLED, message.enabled);
-			} else if (message.type === 'setEventBubblesEnabled') {
-				this.context.globalState.update(GLOBAL_KEY_EVENT_BUBBLES_ENABLED, message.enabled);
-			} else if (message.type === 'webviewReady') {
-				restoreAgents(
+				} else if (message.type === 'setEventBubblesEnabled') {
+					this.context.globalState.update(GLOBAL_KEY_EVENT_BUBBLES_ENABLED, message.enabled);
+				} else if (message.type === 'setHistorySessionsEnabled') {
+					const config = vscode.workspace.getConfiguration('pixel-agents');
+					const hasWorkspace = !!(vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0);
+					await config.update(
+						'historySessions.enabled',
+						message.enabled,
+						hasWorkspace ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global,
+					);
+					this.pushSettings();
+					this.sendHistorySessions(getProjectDirPath());
+				} else if (message.type === 'webviewReady') {
+					restoreAgents(
 					this.context,
-					this.nextAgentId, this.nextTerminalIndex,
+					this.nextTerminalIndex,
 					this.agents, this.knownJsonlFiles,
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 					this.jsonlPollTimers, this.projectScanTimer, this.activeAgentId,
 					this.webview, this.persistAgents,
 				);
-				// Send persisted settings to webview
-				const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
-				const speechBubblesEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SPEECH_BUBBLES_ENABLED, true);
-				const alwaysStatusBubblesEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_ALWAYS_STATUS_BUBBLES_ENABLED, speechBubblesEnabled);
-				const eventBubblesEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_EVENT_BUBBLES_ENABLED, true);
-				postToWebview(this.webview, {
-					type: 'settingsLoaded',
-					soundEnabled,
-					speechBubblesEnabled: alwaysStatusBubblesEnabled,
-					alwaysStatusBubblesEnabled,
-					eventBubblesEnabled,
-				});
+					// Send persisted settings to webview
+					this.pushSettings();
 
 				// Ensure project scan runs even with no restored agents (to adopt external terminals)
 				const projectDir = getProjectDirPath();
@@ -183,7 +200,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				if (projectDir) {
 					ensureProjectScan(
 						projectDir, this.knownJsonlFiles, this.projectScanTimer, this.activeAgentId,
-						this.nextAgentId, this.agents,
+						this.agents,
 						this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 						this.webview, this.persistAgents,
 					);
@@ -305,7 +322,6 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					}
 				}
 			} else if (message.type === 'openHistorySession') {
-				const historyId = Number.isInteger(message.historyId) ? message.historyId : undefined;
 				const rawJsonlPath = (message.jsonlPath || '').trim();
 				const rawSessionId = (message.sessionId || '').trim();
 				const derivedSessionId = (!rawSessionId && rawJsonlPath.endsWith('.jsonl'))
@@ -345,14 +361,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				);
 				launchTerminalForSession(
 					sessionId,
-					this.nextAgentId, this.nextTerminalIndex,
+					this.nextTerminalIndex,
 					this.agents, this.activeAgentId, this.knownJsonlFiles,
 					this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 					this.jsonlPollTimers, this.projectScanTimer,
 					this.webview, this.persistAgents,
 					{
 						resumeSession: true,
-						preferredAgentId: historyId,
 						terminal: existingTerminal,
 						sendCommand: existingTerminal ? false : true,
 					},
@@ -372,25 +387,34 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 					? target
 					: path.resolve(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd(), target);
 				vscode.env.openExternal(vscode.Uri.file(resolvedPath));
-			} else if (message.type === 'exportLayout') {
-				const layout = readLayoutFromFile();
-				if (!layout) {
-					vscode.window.showWarningMessage('Pixel Agents: No saved layout to export.');
-					return;
-				}
-				const uri = await vscode.window.showSaveDialog({
-					filters: { 'JSON Files': ['json'] },
-					defaultUri: vscode.Uri.file(path.join(os.homedir(), 'pixel-agents-layout.json')),
-				});
-				if (uri) {
-					fs.writeFileSync(uri.fsPath, JSON.stringify(layout, null, 2), 'utf-8');
-					vscode.window.showInformationMessage('Pixel Agents: Layout exported successfully.');
-				}
-			} else if (message.type === 'importLayout') {
-				const uris = await vscode.window.showOpenDialog({
-					filters: { 'JSON Files': ['json'] },
-					canSelectMany: false,
-				});
+				} else if (message.type === 'exportLayout') {
+					const layout = readLayoutFromFile();
+					if (!layout) {
+						vscode.window.showWarningMessage('Pixel Agents: No saved layout to export.');
+						return;
+					}
+					const uri = await vscode.window.showSaveDialog({
+						filters: { 'JSON Files': ['json'] },
+						defaultUri: vscode.Uri.file(path.join(os.homedir(), 'pixel-agents-layout.json')),
+					});
+					if (uri) {
+						fs.writeFileSync(uri.fsPath, JSON.stringify(layout, null, 2), 'utf-8');
+						vscode.window.showInformationMessage('Pixel Agents: Layout exported successfully.');
+					}
+				} else if (message.type === 'importPack') {
+					const uris = await vscode.window.showOpenDialog({
+						filters: { 'ZIP Files': ['zip'] },
+						canSelectMany: false,
+					});
+					if (!uris || uris.length === 0) return;
+					vscode.window.showInformationMessage(
+						`Pixel Agents: Selected pack "${path.basename(uris[0].fsPath)}". Pack application flow is not implemented yet.`,
+					);
+				} else if (message.type === 'importLayout') {
+					const uris = await vscode.window.showOpenDialog({
+						filters: { 'JSON Files': ['json'] },
+						canSelectMany: false,
+					});
 				if (!uris || uris.length === 0) return;
 				try {
 					const raw = fs.readFileSync(uris[0].fsPath, 'utf-8');

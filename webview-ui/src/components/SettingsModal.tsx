@@ -14,6 +14,8 @@ interface SettingsModalProps {
   isDebugMode: boolean
   onToggleDebugMode: () => void
   onExportLayout: () => void
+  historySessionsEnabled: boolean
+  onToggleHistorySessions: (enabled: boolean) => void
 }
 
 const menuItemBase: React.CSSProperties = {
@@ -31,18 +33,28 @@ const menuItemBase: React.CSSProperties = {
   textAlign: 'left',
 }
 
-export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode, onExportLayout }: SettingsModalProps) {
+export function SettingsModal({
+  isOpen,
+  onClose,
+  isDebugMode,
+  onToggleDebugMode,
+  onExportLayout,
+  historySessionsEnabled,
+  onToggleHistorySessions,
+}: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled)
   const [alwaysStatusBubblesLocal, setAlwaysStatusBubblesLocal] = useState(isAlwaysStatusBubblesEnabled)
   const [eventBubblesLocal, setEventBubblesLocal] = useState(isEventBubblesEnabled)
+  const [historySessionsLocal, setHistorySessionsLocal] = useState(historySessionsEnabled)
 
   useEffect(() => {
     if (!isOpen) return
     setSoundLocal(isSoundEnabled())
     setAlwaysStatusBubblesLocal(isAlwaysStatusBubblesEnabled())
     setEventBubblesLocal(isEventBubblesEnabled())
-  }, [isOpen])
+    setHistorySessionsLocal(historySessionsEnabled)
+  }, [isOpen, historySessionsEnabled])
 
   if (!isOpen) return null
 
@@ -149,6 +161,53 @@ export function SettingsModal({ isOpen, onClose, isDebugMode, onToggleDebugMode,
           }}
         >
           Import Layout
+        </button>
+        <button
+          onClick={() => {
+            vscode.postMessage({ type: 'importPack' })
+            onClose()
+          }}
+          onMouseEnter={() => setHovered('import-pack')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...menuItemBase,
+            background: hovered === 'import-pack' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          }}
+        >
+          Import Pack (.zip)
+        </button>
+        <button
+          onClick={() => {
+            const newVal = !historySessionsLocal
+            setHistorySessionsLocal(newVal)
+            onToggleHistorySessions(newVal)
+          }}
+          onMouseEnter={() => setHovered('history-sessions')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...menuItemBase,
+            background: hovered === 'history-sessions' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          }}
+        >
+          <span>Show history characters</span>
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              border: '2px solid rgba(255, 255, 255, 0.5)',
+              borderRadius: 0,
+              background: historySessionsLocal ? 'rgba(90, 140, 255, 0.8)' : 'transparent',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              lineHeight: 1,
+              color: '#fff',
+            }}
+          >
+            {historySessionsLocal ? 'X' : ''}
+          </span>
         </button>
         <button
           onClick={() => {

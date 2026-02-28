@@ -41,46 +41,50 @@ export interface FurnitureCatalogAsset {
 }
 
 export interface HistorySessionSummary {
-	id: number;
+	id: string;
 	sessionId: string;
 	jsonlPath: string;
 	createdAt: string;
+	lastActivityAt: string;
+	preview: string;
 }
 
 export type WebviewToExtensionMessage =
 	| { type: 'openClaude' }
-	| { type: 'focusAgent'; id: number }
-	| { type: 'closeAgent'; id: number }
-	| { type: 'saveAgentSeats'; seats: Record<number, AgentSeatAssignment> }
+	| { type: 'focusAgent'; id: string }
+	| { type: 'closeAgent'; id: string }
+	| { type: 'saveAgentSeats'; seats: Record<string, AgentSeatAssignment> }
 	| { type: 'saveLayout'; layout: Record<string, unknown> }
 	| { type: 'setSoundEnabled'; enabled: boolean }
 	| { type: 'setSpeechBubblesEnabled'; enabled: boolean }
 	| { type: 'setAlwaysStatusBubblesEnabled'; enabled: boolean }
 	| { type: 'setEventBubblesEnabled'; enabled: boolean }
+	| { type: 'setHistorySessionsEnabled'; enabled: boolean }
 	| { type: 'webviewReady' }
 	| { type: 'openSessionsFolder' }
-	| { type: 'openSessionTranscript'; jsonlPath: string }
+	| { type: 'openHistorySession'; historyId: string; sessionId: string; jsonlPath: string }
 	| { type: 'openExternal'; target: string }
 	| { type: 'exportLayout' }
+	| { type: 'importPack' }
 	| { type: 'importLayout' };
 
 export type ExtensionToWebviewMessage =
 	| { type: 'layoutLoaded'; layout: Record<string, unknown> | null }
-	| { type: 'agentCreated'; id: number }
-	| { type: 'agentClosed'; id: number }
-	| { type: 'existingAgents'; agents: number[]; agentMeta?: Record<string, ExistingAgentMeta> }
+	| { type: 'agentCreated'; id: string }
+	| { type: 'agentClosed'; id: string }
+	| { type: 'existingAgents'; agents: string[]; agentMeta?: Record<string, ExistingAgentMeta> }
 	| { type: 'historySessionsLoaded'; sessions: HistorySessionSummary[] }
-	| { type: 'agentSelected'; id: number }
-	| { type: 'agentToolStart'; id: number; toolId: string; status: string }
-	| { type: 'agentToolDone'; id: number; toolId: string }
-	| { type: 'agentToolsClear'; id: number }
-	| { type: 'agentStatus'; id: number; status: AgentRuntimeStatus }
-	| { type: 'agentToolPermission'; id: number }
-	| { type: 'agentToolPermissionClear'; id: number }
-	| { type: 'subagentToolStart'; id: number; parentToolId: string; toolId: string; status: string }
-	| { type: 'subagentToolDone'; id: number; parentToolId: string; toolId: string }
-	| { type: 'subagentClear'; id: number; parentToolId: string }
-	| { type: 'subagentToolPermission'; id: number; parentToolId: string }
+	| { type: 'agentSelected'; id: string }
+	| { type: 'agentToolStart'; id: string; toolId: string; status: string }
+	| { type: 'agentToolDone'; id: string; toolId: string }
+	| { type: 'agentToolsClear'; id: string }
+	| { type: 'agentStatus'; id: string; status: AgentRuntimeStatus }
+	| { type: 'agentToolPermission'; id: string }
+	| { type: 'agentToolPermissionClear'; id: string }
+	| { type: 'subagentToolStart'; id: string; parentToolId: string; toolId: string; status: string }
+	| { type: 'subagentToolDone'; id: string; parentToolId: string; toolId: string }
+	| { type: 'subagentClear'; id: string; parentToolId: string }
+	| { type: 'subagentToolPermission'; id: string; parentToolId: string }
 	| { type: 'characterSpritesLoaded'; characters: CharacterDirectionSprites[] }
 	| { type: 'floorTilesLoaded'; sprites: string[][][] }
 	| { type: 'wallTilesLoaded'; sprites: string[][][] }
@@ -88,8 +92,9 @@ export type ExtensionToWebviewMessage =
 	| {
 		type: 'settingsLoaded';
 		soundEnabled: boolean;
-		speechBubblesEnabled?: boolean;
-		alwaysStatusBubblesEnabled?: boolean;
-		eventBubblesEnabled?: boolean;
-	}
+			speechBubblesEnabled?: boolean;
+			alwaysStatusBubblesEnabled?: boolean;
+			eventBubblesEnabled?: boolean;
+			historySessionsEnabled?: boolean;
+		}
 	| { type: 'trackingEvent'; event: TrackingEvent };
