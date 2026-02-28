@@ -59,10 +59,17 @@ function formatHistoryAgeAgo(targetMs: number): string {
   return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`
 }
 
-function formatLocalTime(iso: string): string {
+function formatDateTimeCompact(iso: string): string {
   const ms = parseIsoToMs(iso)
   if (ms <= 0) return '-'
-  return new Date(ms).toLocaleString()
+  const d = new Date(ms)
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const HH = String(d.getHours()).padStart(2, '0')
+  const MM = String(d.getMinutes()).padStart(2, '0')
+  const SS = String(d.getSeconds()).padStart(2, '0')
+  return `${yyyy}.${mm}.${dd} ${HH}:${MM}:${SS}`
 }
 
 function toHistoryTitleSnippet(preview: string, sessionId: string): string {
@@ -174,7 +181,18 @@ function App() {
 
   const isEditDirty = useCallback(() => editor.isEditMode && editor.isDirty, [editor.isEditMode, editor.isDirty])
 
-  const { agents, selectedAgent, historySessions, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
+  const {
+    agents,
+    selectedAgent,
+    historySessions,
+    historySessionsEnabled,
+    agentTools,
+    agentStatuses,
+    subagentTools,
+    subagentCharacters,
+    layoutReady,
+    loadedAssets,
+  } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
 
   const [isDebugMode, setIsDebugMode] = useState(false)
   const [hoveredAgentId, setHoveredAgentId] = useState<AgentId | null>(null)
@@ -225,6 +243,10 @@ function App() {
   const handleExportLayout = useCallback(() => {
     const layout = getOfficeState().getLayout()
     downloadJson(makeLayoutFilename(), layout)
+  }, [])
+
+  const handleToggleHistorySessions = useCallback((enabled: boolean) => {
+    vscode.postMessage({ type: 'setHistorySessionsEnabled', enabled })
   }, [])
 
   const officeState = getOfficeState()
@@ -286,7 +308,7 @@ function App() {
       <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />
 
       {hoveredHistory && (() => {
-        const title = toHistoryTitleSnippet(hoveredHistory.preview, hoveredHistory.sessionId)
+        const title = toHistoryTitleSnippet(hoveredHistory.preview, hoveredHistory.sessionId) || hoveredHistory.sessionId
         return (
         <div
           style={{
@@ -304,7 +326,16 @@ function App() {
         >
           <div style={{ fontSize: '19px', color: 'var(--vscode-foreground)', marginBottom: 4 }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '15px', color: 'var(--pixel-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div
+                style={{
+                  fontSize: '15px',
+                  color: 'var(--vscode-foreground)',
+                  fontWeight: 600,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {title}
               </div>
               <div
@@ -322,10 +353,10 @@ function App() {
             </div>
           </div>
           <div style={{ fontSize: '16px', color: 'var(--pixel-text-dim)', marginBottom: 4 }}>
-            Last active: {formatLocalTime(hoveredHistory.lastActivityAt)}
+            Last active: {formatDateTimeCompact(hoveredHistory.lastActivityAt)}
           </div>
           <div style={{ fontSize: '16px', color: 'var(--pixel-text-dim)', marginBottom: 6 }}>
-            Created: {formatLocalTime(hoveredHistory.createdAt)}
+            Created: {formatDateTimeCompact(hoveredHistory.createdAt)}
           </div>
           <div style={{ fontSize: '18px', color: 'var(--vscode-foreground)', whiteSpace: 'pre-wrap', lineHeight: 1.3 }}>
             {hoveredHistory.preview || '(No preview text)'}
@@ -352,6 +383,8 @@ function App() {
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
         onExportLayout={handleExportLayout}
+        historySessionsEnabled={historySessionsEnabled}
+        onToggleHistorySessions={handleToggleHistorySessions}
       />
 
       {editor.isEditMode && editor.isDirty && (
