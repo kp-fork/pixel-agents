@@ -1,0 +1,11 @@
+{
+  "packVersion": 1,
+  "id": "example.template.pack",
+  "name": "Template Pack",
+  "description": "Minimal Pixel Agents pack template",
+  "author": "your-name",
+  "createdAt": "2026-02-28T00:00:00.000Z",
+  "entryLayout": "layouts/default-layout.json",
+  "furnitureCatalog": "assets/furniture/furniture-catalog.json"
+}
+

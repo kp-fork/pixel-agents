@@ -8,20 +8,20 @@
 
 ## 20260227__theme-office.json
 
-- 목적: 칸막이+좌석 중심의 사무실형 테마 레이아웃
-- 규격: `version: 1`, `21x21`, 가구 57개
+- 목적: 칸막이+좌석 중심의 사무실형 테마 레이아웃 (라운지/장비 존 추가)
+- 규격: `version: 1`, `21x21`, 가구 67개
 - 호환: 커스텀 가구 에셋 필요 (`assets/furniture/furniture-catalog.json` + `assets/furniture/custom/*.png`)
 
 ## 20260227__theme-cafe.json
 
-- 목적: 카운터/테이블/스툴 중심의 카페형 테마 레이아웃
-- 규격: `version: 1`, `21x21`, 가구 37개
+- 목적: 카운터/테이블/스툴 중심의 카페형 테마 레이아웃 (파티션/키오스크 존 추가)
+- 규격: `version: 1`, `21x21`, 가구 45개
 - 호환: 커스텀 가구 에셋 필요 (`assets/furniture/furniture-catalog.json` + `assets/furniture/custom/*.png`)
 
 ## 20260227__theme-lab.json
 
-- 목적: 실험 벤치/장비 중심의 연구실형 테마 레이아웃
-- 규격: `version: 1`, `21x21`, 가구 38개
+- 목적: 실험 벤치/장비 중심의 연구실형 테마 레이아웃 (분리대/보조 카운터 추가)
+- 규격: `version: 1`, `21x21`, 가구 47개
 - 호환: 커스텀 가구 에셋 필요 (`assets/furniture/furniture-catalog.json` + `assets/furniture/custom/*.png`)
 
 ## Import 방법
@@ -35,3 +35,8 @@
    - `docs/layouts/20260227__theme-lab.json`
 
 필요하면 현재 레이아웃은 먼저 `Export Layout`으로 백업하세요.
+
+## Pack 문서
+
+- Pack 구조 명세: `docs/packs/README.md`
+- Pack 템플릿: `docs/packs/template/`
