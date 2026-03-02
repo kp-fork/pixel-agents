@@ -2,7 +2,7 @@
 
 ## Scope
 - 프로젝트가 열릴 때 해당 Claude project 디렉토리의 최근 N일 세션을 history 캐릭터로 배치한다.
-- history 캐릭터는 runtime 추적 대상이 아니며, 클릭 시 transcript를 연다.
+- history 캐릭터는 runtime 추적 대상이 아니며, 클릭 시 해당 sessionId로 Claude 터미널을 연다.
 - 좌석 재배치는 허용, 직접 이동은 불가로 고정한다.
 
 ## PR Plan
@@ -31,6 +31,15 @@
   - `test:runtime` 통합
   - README 설정 문서화
 
+### PR26 - history 클릭 시 세션 터미널 실행
+- 목표: history 캐릭터 클릭 시 transcript 오픈 대신 해당 세션의 Claude 터미널을 실행/포커스
+- 상태: done
+- 핵심 작업:
+  - inbound 메시지 `openHistorySession`으로 전환(`sessionId`, `jsonlPath`)
+  - extension에서 `launchTerminalForSession(sessionId)` 경로 추가
+  - 이미 실행 중인 동일 세션 터미널이 있으면 신규 생성 대신 포커스
+  - 세션 실행/종료 시 history 목록 재동기화
+
 ## Execution Log
 
 ### PR23
@@ -44,7 +53,7 @@
     - `pixel-agents.historySessions.maxVisible`
   - 계약/호스트 반영:
     - outbound `historySessionsLoaded`
-    - inbound `openSessionTranscript`
+    - inbound `openHistorySession` (후속 PR26에서 최종 전환)
     - webviewReady 시 history 목록 전송
 - Validation:
   - `npm run check-types` 통과
@@ -58,7 +67,7 @@
   - `isHistorical` 캐릭터 속성 추가.
   - `historySessionsLoaded` 수신 시 office state에 history 캐릭터 동기화.
   - 클릭 분기:
-    - history 캐릭터: `openSessionTranscript`
+    - history 캐릭터: `openHistorySession` (PR26 기준)
     - live/subagent: 기존 focus 동작 유지
   - 동작 정책:
     - 좌석 재배치 가능
@@ -83,3 +92,20 @@
   - `npm run check-types` 통과
 - Summary:
   - history 경로에 대한 최소 회귀 안전망과 운영 문서가 확보됨.
+
+### PR26
+- Review:
+  - transcript 파일 열기만으로는 사용자가 바로 세션을 재개할 수 없어 행동 목적과 맞지 않았다.
+- Improvement:
+  - webview 클릭 메시지 변경:
+    - `openSessionTranscript` → `openHistorySession`
+  - extension 호스트 처리 변경:
+    - `sessionId` 기반 Claude 터미널 생성/추적 함수(`launchTerminalForSession`) 추가
+    - 동일 세션이 이미 live agent면 기존 터미널 포커스
+    - `openClaude`/history 실행/터미널 종료 시 history 목록 재계산 전송
+- Validation:
+  - `npm run check-types` 통과
+  - `npm run test:runtime` 통과
+  - `npm run build` 통과
+- Summary:
+  - history 캐릭터 클릭이 실제 세션 재개 동작(터미널 실행)으로 연결됨.

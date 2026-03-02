@@ -51,11 +51,12 @@ Then press **F5** in VS Code to launch the Extension Development Host.
 If you want to run Pixel Agents as a normal installed extension (instead of the Extension Development Host), package and install a local `.vsix`:
 
 ```bash
-# 1) Build + create VSIX
-npx @vscode/vsce package
+# One-shot: build + package + force reinstall
+npm run reinstall:vsix
 
-# 2) Install (force-reinstall same version)
-code --install-extension pixel-agents-1.0.0.vsix --force
+# (or run separately)
+npm run package:vsix
+npm run install:vsix
 ```
 
 To check what is installed:
@@ -66,6 +67,7 @@ code --list-extensions --show-versions | rg pablodelucca.pixel-agents
 
 Notes:
 - `npm run package` only runs the build pipeline; it does not create a `.vsix` by itself.
+- `npm run package:vsix` creates `pixel-agents-local.vsix`.
 - `--list-extensions` is a listing mode. If you pass it together with `--extensionDevelopmentPath`, VS Code prints extensions and exits instead of launching a dev host.
 
 ### Run as extension development host
@@ -107,6 +109,7 @@ npm run test:flow:batch
 ```
 
 History session preview behavior can be configured in VS Code settings:
+- `pixel-agents.claudeResumeCommand`
 - `pixel-agents.historySessions.enabled`
 - `pixel-agents.historySessions.lookbackDays`
 - `pixel-agents.historySessions.maxVisible`
