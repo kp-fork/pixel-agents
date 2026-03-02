@@ -51,7 +51,7 @@ export interface HistorySessionSummary {
 }
 
 export type WebviewToExtensionMessage =
-	| { type: 'openClaude' }
+	| { type: 'openClaude'; folderPath?: string }
 	| { type: 'focusAgent'; id: string }
 	| { type: 'closeAgent'; id: string }
 	| { type: 'saveAgentSeats'; seats: Record<string, AgentSeatAssignment> }
@@ -72,9 +72,9 @@ export type WebviewToExtensionMessage =
 
 export type ExtensionToWebviewMessage =
 	| { type: 'layoutLoaded'; layout: Record<string, unknown> | null }
-	| { type: 'agentCreated'; id: string }
+	| { type: 'agentCreated'; id: string; folderName?: string }
 	| { type: 'agentClosed'; id: string }
-	| { type: 'existingAgents'; agents: string[]; agentMeta?: Record<string, ExistingAgentMeta> }
+	| { type: 'existingAgents'; agents: string[]; agentMeta?: Record<string, ExistingAgentMeta>; folderNames?: Record<string, string> }
 	| { type: 'historySessionsLoaded'; sessions: HistorySessionSummary[] }
 	| { type: 'agentSelected'; id: string }
 	| { type: 'agentToolStart'; id: string; toolId: string; status: string }
@@ -90,6 +90,7 @@ export type ExtensionToWebviewMessage =
 	| { type: 'characterSpritesLoaded'; characters: CharacterDirectionSprites[] }
 	| { type: 'floorTilesLoaded'; sprites: string[][][] }
 	| { type: 'wallTilesLoaded'; sprites: string[][][] }
+	| { type: 'workspaceFolders'; folders: Array<{ name: string; path: string }> }
 	| { type: 'furnitureAssetsLoaded'; catalog: FurnitureCatalogAsset[]; sprites: Record<string, string[][]> }
 	| {
 		type: 'settingsLoaded';

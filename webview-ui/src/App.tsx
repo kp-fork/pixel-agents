@@ -162,6 +162,7 @@ function App() {
     subagentCharacters,
     layoutReady,
     loadedAssets,
+    workspaceFolders,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
 
   const [isDebugMode, setIsDebugMode] = useState(false)
@@ -363,6 +364,7 @@ function App() {
         onZoomChange={editor.handleZoomChange}
         historySessionsEnabled={historySessionsEnabled}
         onToggleHistorySessions={handleToggleHistorySessions}
+        workspaceFolders={workspaceFolders}
       />
 
       {editor.isEditMode && editor.isDirty && (

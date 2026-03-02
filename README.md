@@ -19,7 +19,7 @@ This is the source code for the free [Pixel Agents extension for VS Code](https:
 - **Sub-agent visualization** — Task tool sub-agents spawn as separate characters linked to their parent
 - **Recent session previews** — optionally show last N-day local session transcripts as read-only history characters
 - **Persistent layouts** — your office design is saved and shared across VS Code windows
-- **Diverse characters** — 6 diverse characters.
+- **Diverse characters** — 6 diverse characters. These are based on the amazing work of [JIK-A-4, Metro City](https://jik-a-4.itch.io/metrocity-free-topdown-character-pack).
 
 <p align="center">
   <img src="webview-ui/public/characters.png" alt="Pixel Agents characters" width="320" height="72" style="image-rendering: pixelated;">

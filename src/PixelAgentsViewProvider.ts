@@ -225,14 +225,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				this.activeAgentId.current = null;
 				if (!terminal) return;
 				for (const [id, agent] of this.agents) {
-					if (agent.terminalRef === terminal) {
-						this.activeAgentId.current = id;
-						postToWebview(this.webview, { type: 'agentSelected', id });
-						break;
+						if (agent.terminalRef === terminal) {
+							this.activeAgentId.current = id;
+							postToWebview(this.webview, { type: 'agentSelected', id });
+							break;
+						}
 					}
-				}
-			}),
-		);
+				}),
+			);
 		this.context.subscriptions.push(
 			vscode.window.onDidCloseTerminal((closed) => {
 				for (const [id, agent] of this.agents) {
@@ -256,12 +256,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
 	private async handleWebviewMessage(message: WebviewToExtensionMessage): Promise<void> {
 		if (message.type === 'openClaude') {
+			const folderPath = (message as { folderPath?: string }).folderPath;
 			launchNewTerminal(
 				this.nextTerminalIndex,
 				this.agents, this.activeAgentId, this.knownJsonlFiles,
 				this.fileWatchers, this.pollingTimers, this.waitingTimers, this.permissionTimers,
 				this.jsonlPollTimers, this.projectScanTimer,
 				this.webview, this.persistAgents,
+				folderPath,
 			);
 			this.sendHistorySessions(getProjectDirPath());
 		} else if (message.type === 'focusAgent') {
@@ -316,6 +318,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			}
 			// Send persisted settings to webview
 			this.pushSettings();
+			const wsFolders = vscode.workspace.workspaceFolders;
+			if (wsFolders && wsFolders.length > 1) {
+				postToWebview(this.webview, {
+					type: 'workspaceFolders',
+					folders: wsFolders.map((folder) => ({ name: folder.name, path: folder.uri.fsPath })),
+				});
+			}
 
 			// Ensure project scan runs even with no restored agents (to adopt external terminals)
 			const projectDir = getProjectDirPath();

@@ -198,7 +198,7 @@ export class OfficeState {
     return { palette, hueShift }
   }
 
-  addAgent(id: AgentId, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean): void {
+  addAgent(id: AgentId, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean, folderName?: string): void {
     const existing = this.characters.get(id)
     if (existing) {
       if (!existing.isHistorical) return
@@ -224,6 +224,9 @@ export class OfficeState {
       }
       if (preferredHueShift !== undefined) {
         existing.hueShift = preferredHueShift
+      }
+      if (folderName) {
+        existing.folderName = folderName
       }
       // Optional seat reassignment only when explicitly requested.
       if (preferredSeatId && this.seats.has(preferredSeatId)) {
@@ -286,6 +289,9 @@ export class OfficeState {
       ch.tileRow = spawn.row
     }
 
+    if (folderName) {
+      ch.folderName = folderName
+    }
     if (!skipSpawnEffect) {
       ch.matrixEffect = 'spawn'
       ch.matrixEffectTimer = 0
