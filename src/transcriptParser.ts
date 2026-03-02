@@ -1,6 +1,6 @@
 import * as path from 'path';
 import type * as vscode from 'vscode';
-import type { AgentState } from './types.js';
+import type { AgentId, AgentState } from './types.js';
 import {
 	cancelWaitingTimer,
 	startWaitingTimer,
@@ -57,11 +57,11 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
 }
 
 export function processTranscriptLine(
-	agentId: number,
+	agentId: AgentId,
 	line: string,
-	agents: Map<number, AgentState>,
-	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
-	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	agents: Map<AgentId, AgentState>,
+	waitingTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
+	permissionTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 ): void {
 	const agent = agents.get(agentId);
@@ -191,11 +191,11 @@ export function processTranscriptLine(
 }
 
 function processProgressRecord(
-	agentId: number,
+	agentId: AgentId,
 	record: Record<string, unknown>,
-	agents: Map<number, AgentState>,
-	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
-	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	agents: Map<AgentId, AgentState>,
+	waitingTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
+	permissionTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 ): void {
 	const agent = agents.get(agentId);

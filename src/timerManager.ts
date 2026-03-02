@@ -1,5 +1,5 @@
 import type * as vscode from 'vscode';
-import type { AgentState } from './types.js';
+import type { AgentId, AgentState } from './types.js';
 import { PERMISSION_TIMER_DELAY_MS } from './constants.js';
 import { postToWebview } from './contracts/postMessage.js';
 
@@ -13,8 +13,8 @@ function isPermissionExempt(
 
 export function clearAgentActivity(
 	agent: AgentState | undefined,
-	agentId: number,
-	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	agentId: AgentId,
+	permissionTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 ): void {
 	if (!agent) return;
@@ -31,8 +31,8 @@ export function clearAgentActivity(
 }
 
 export function cancelWaitingTimer(
-	agentId: number,
-	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+	agentId: AgentId,
+	waitingTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
 ): void {
 	const timer = waitingTimers.get(agentId);
 	if (timer) {
@@ -42,10 +42,10 @@ export function cancelWaitingTimer(
 }
 
 export function startWaitingTimer(
-	agentId: number,
+	agentId: AgentId,
 	delayMs: number,
-	agents: Map<number, AgentState>,
-	waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+	agents: Map<AgentId, AgentState>,
+	waitingTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 ): void {
 	cancelWaitingTimer(agentId, waitingTimers);
@@ -65,8 +65,8 @@ export function startWaitingTimer(
 }
 
 export function cancelPermissionTimer(
-	agentId: number,
-	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	agentId: AgentId,
+	permissionTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
 ): void {
 	const timer = permissionTimers.get(agentId);
 	if (timer) {
@@ -76,9 +76,9 @@ export function cancelPermissionTimer(
 }
 
 export function startPermissionTimer(
-	agentId: number,
-	agents: Map<number, AgentState>,
-	permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+	agentId: AgentId,
+	agents: Map<AgentId, AgentState>,
+	permissionTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
 	permissionExemptTools: Set<string>,
 	webview: vscode.Webview | undefined,
 ): void {

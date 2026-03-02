@@ -5,6 +5,7 @@ import type { EditorRenderState, SelectionRenderState, DeleteButtonBounds, Rotat
 import { startGameLoop } from '../engine/gameLoop.js'
 import { renderFrame } from '../engine/renderer.js'
 import { TILE_SIZE, EditTool } from '../types.js'
+import type { AgentId } from '../types.js'
 import { CAMERA_FOLLOW_LERP, CAMERA_FOLLOW_SNAP_THRESHOLD, ZOOM_MIN, ZOOM_MAX, ZOOM_SCROLL_THRESHOLD, PAN_MARGIN_FRACTION } from '../../constants.js'
 import { getCatalogEntry, isRotatable } from '../layout/furnitureCatalog.js'
 import { canPlaceFurniture, getWallPlacementRow } from '../editor/editorActions.js'
@@ -13,7 +14,8 @@ import { unlockAudio } from '../../notificationSound.js'
 
 interface OfficeCanvasProps {
   officeState: OfficeState
-  onClick: (agentId: number) => void
+  onClick: (agentId: AgentId) => void
+  onHoverAgent?: (agentId: AgentId | null) => void
   isEditMode: boolean
   editorState: EditorState
   onEditorTileAction: (col: number, row: number) => void
@@ -28,7 +30,7 @@ interface OfficeCanvasProps {
   panRef: React.MutableRefObject<{ x: number; y: number }>
 }
 
-export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, onEditorTileAction, onEditorEraseAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, onDragMove, editorTick: _editorTick, zoom, onZoomChange, panRef }: OfficeCanvasProps) {
+export function OfficeCanvas({ officeState, onClick, onHoverAgent, isEditMode, editorState, onEditorTileAction, onEditorEraseAction, onEditorSelectionChange, onDeleteSelected, onRotateSelected, onDragMove, editorTick: _editorTick, zoom, onZoomChange, panRef }: OfficeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const offsetRef = useRef({ x: 0, y: 0 })
@@ -42,6 +44,7 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
   const isEraseDraggingRef = useRef(false)
   // Zoom scroll accumulator for trackpad pinch sensitivity
   const zoomAccumulatorRef = useRef(0)
+  const lastHoveredAgentRef = useRef<AgentId | null>(null)
 
   // Clamp pan so the map edge can't go past a margin inside the viewport
   const clampPan = useCallback((px: number, py: number): { x: number; y: number } => {
@@ -373,6 +376,10 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
       const hitId = officeState.getCharacterAt(pos.worldX, pos.worldY)
       const tile = screenToTile(e.clientX, e.clientY)
       officeState.hoveredTile = tile
+      if (lastHoveredAgentRef.current !== hitId) {
+        lastHoveredAgentRef.current = hitId
+        onHoverAgent?.(hitId)
+      }
       const canvas = canvasRef.current
       if (canvas) {
         let cursor = 'default'
@@ -395,7 +402,7 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
       }
       officeState.hoveredAgentId = hitId
     },
-    [officeState, screenToWorld, screenToTile, isEditMode, editorState, onEditorTileAction, onEditorEraseAction, panRef, hitTestDeleteButton, hitTestRotateButton, clampPan],
+    [officeState, screenToWorld, screenToTile, isEditMode, editorState, onEditorTileAction, onEditorEraseAction, panRef, hitTestDeleteButton, hitTestRotateButton, clampPan, onHoverAgent],
   )
 
   const handleMouseDown = useCallback(
@@ -585,7 +592,7 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
                   officeState.selectedAgentId = null
                   officeState.cameraFollowId = null
                   // Persist seat assignments (exclude sub-agents)
-                  const seats: Record<number, { palette: number; seatId: string | null }> = {}
+                  const seats: Record<string, { palette: number; seatId: string | null }> = {}
                   for (const ch of officeState.characters.values()) {
                     if (ch.isSubagent) continue
                     seats[ch.id] = { palette: ch.palette, seatId: ch.seatId }
@@ -615,7 +622,9 @@ export function OfficeCanvas({ officeState, onClick, isEditMode, editorState, on
     editorState.ghostRow = -1
     officeState.hoveredAgentId = null
     officeState.hoveredTile = null
-  }, [officeState, editorState])
+    lastHoveredAgentRef.current = null
+    onHoverAgent?.(null)
+  }, [officeState, editorState, onHoverAgent])
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()

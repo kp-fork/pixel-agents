@@ -1,5 +1,5 @@
 import { TileType, TILE_SIZE, CharacterState } from '../types.js'
-import type { TileType as TileTypeVal, FurnitureInstance, Character, SpriteData, Seat, FloorColor } from '../types.js'
+import type { AgentId, TileType as TileTypeVal, FurnitureInstance, Character, SpriteData, Seat, FloorColor } from '../types.js'
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js'
 import { getCharacterSprites, BUBBLE_PERMISSION_SPRITE, BUBBLE_WAITING_SPRITE } from '../sprites/spriteData.js'
 import { getCharacterSprite } from './characters.js'
@@ -102,8 +102,8 @@ export function renderScene(
   offsetX: number,
   offsetY: number,
   zoom: number,
-  selectedAgentId: number | null,
-  hoveredAgentId: number | null,
+  selectedAgentId: AgentId | null,
+  hoveredAgentId: AgentId | null,
 ): void {
   const drawables: ZDrawable[] = []
 
@@ -199,8 +199,8 @@ export function renderScene(
 export function renderSeatIndicators(
   ctx: CanvasRenderingContext2D,
   seats: Map<string, Seat>,
-  characters: Map<number, Character>,
-  selectedAgentId: number | null,
+  characters: Map<AgentId, Character>,
+  selectedAgentId: AgentId | null,
   hoveredTile: { col: number; row: number } | null,
   offsetX: number,
   offsetY: number,
@@ -529,11 +529,11 @@ export interface EditorRenderState {
 }
 
 export interface SelectionRenderState {
-  selectedAgentId: number | null
-  hoveredAgentId: number | null
+  selectedAgentId: AgentId | null
+  hoveredAgentId: AgentId | null
   hoveredTile: { col: number; row: number } | null
   seats: Map<string, Seat>
-  characters: Map<number, Character>
+  characters: Map<AgentId, Character>
 }
 
 export function renderFrame(

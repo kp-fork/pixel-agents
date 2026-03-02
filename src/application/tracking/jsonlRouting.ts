@@ -1,15 +1,15 @@
 export type JsonlRoutingDecision =
-	| { action: 'reassign'; agentId: number }
+	| { action: 'reassign'; agentId: string }
 	| { action: 'adopt' }
 	| { action: 'ignore' };
 
 export interface JsonlRoutingAgent {
-	id: number;
+	id: string;
 	terminalRef: unknown;
 }
 
 export function decideJsonlRouting(
-	activeAgentId: number | null,
+	activeAgentId: string | null,
 	activeTerminal: unknown,
 	agents: Iterable<JsonlRoutingAgent>,
 ): JsonlRoutingDecision {

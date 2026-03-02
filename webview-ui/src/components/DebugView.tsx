@@ -1,13 +1,13 @@
-import type { ToolActivity } from '../office/types.js'
+import type { AgentId, ToolActivity } from '../office/types.js'
 import { vscode } from '../vscodeApi.js'
 
 interface DebugViewProps {
-  agents: number[]
-  selectedAgent: number | null
-  agentTools: Record<number, ToolActivity[]>
-  agentStatuses: Record<number, string>
-  subagentTools: Record<number, Record<string, ToolActivity[]>>
-  onSelectAgent: (id: number) => void
+  agents: AgentId[]
+  selectedAgent: AgentId | null
+  agentTools: Record<string, ToolActivity[]>
+  agentStatuses: Record<string, string>
+  subagentTools: Record<string, Record<string, ToolActivity[]>>
+  onSelectAgent: (id: AgentId) => void
 }
 
 /** Z-index just below the floating toolbar (50) so the toolbar stays on top */
@@ -37,7 +37,7 @@ function ToolLine({ tool }: { tool: ToolActivity }) {
   return (
     <span
       style={{
-        fontSize: '22px',
+        fontSize: 'var(--pixel-font-md)',
         opacity: tool.done ? 0.5 : 0.8,
         display: 'flex',
         alignItems: 'center',
@@ -58,7 +58,7 @@ export function DebugView({
   subagentTools,
   onSelectAgent,
 }: DebugViewProps) {
-  const renderAgentCard = (id: number) => {
+  const renderAgentCard = (id: AgentId) => {
     const isSelected = selectedAgent === id
     const tools = agentTools[id] || []
     const subs = subagentTools[id] || {}
@@ -80,10 +80,10 @@ export function DebugView({
             style={{
               borderRadius: 0,
               padding: '6px 10px',
-              fontSize: '26px',
+              fontSize: 'var(--pixel-font-lg)',
               background: isSelected ? 'rgba(90, 140, 255, 0.25)' : undefined,
               color: isSelected ? '#fff' : undefined,
-              fontWeight: isSelected ? 'bold' : undefined,
+              fontWeight: 'var(--pixel-font-weight)',
             }}
           >
             Agent #{id}
@@ -93,7 +93,7 @@ export function DebugView({
             style={{
               borderRadius: 0,
               padding: '6px 8px',
-              fontSize: '26px',
+              fontSize: 'var(--pixel-font-lg)',
               opacity: 0.7,
               background: isSelected ? 'rgba(90, 140, 255, 0.25)' : undefined,
               color: isSelected ? '#fff' : undefined,
@@ -130,7 +130,7 @@ export function DebugView({
             {status === 'waiting' && !hasActiveTools && (
               <span
                 style={{
-                  fontSize: '22px',
+                  fontSize: 'var(--pixel-font-md)',
                   opacity: 0.85,
                   display: 'flex',
                   alignItems: 'center',
@@ -170,7 +170,7 @@ export function DebugView({
       }}
     >
       {/* Top padding so cards don't overlap the floating toolbar */}
-      <div style={{ padding: '12px 12px 12px', fontSize: '28px' }}>
+      <div style={{ padding: '12px 12px 12px', fontSize: 'var(--pixel-font-md)' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {agents.map(renderAgentCard)}
         </div>

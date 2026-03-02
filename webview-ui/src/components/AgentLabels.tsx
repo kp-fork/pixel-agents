@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import type { OfficeState } from '../office/engine/officeState.js'
 import type { SubagentCharacter } from '../hooks/useExtensionMessages.js'
 import { TILE_SIZE, CharacterState } from '../office/types.js'
+import type { AgentId } from '../office/types.js'
 
 interface AgentLabelsProps {
   officeState: OfficeState
-  agents: number[]
-  agentStatuses: Record<number, string>
+  agents: AgentId[]
+  agentStatuses: Record<string, string>
   containerRef: React.RefObject<HTMLDivElement | null>
   zoom: number
   panRef: React.RefObject<{ x: number; y: number }>
@@ -47,7 +48,7 @@ export function AgentLabels({
   const deviceOffsetY = Math.floor((canvasH - mapH) / 2) + Math.round(panRef.current.y)
 
   // Build sub-agent label lookup
-  const subLabelMap = new Map<number, string>()
+  const subLabelMap = new Map<AgentId, string>()
   for (const sub of subagentCharacters) {
     subLabelMap.set(sub.id, sub.label)
   }
@@ -107,9 +108,9 @@ export function AgentLabels({
                 }}
               />
             )}
-            <span
+                <span
               style={{
-                fontSize: isSub ? '16px' : '18px',
+                fontSize: isSub ? 'var(--pixel-font-sm)' : 'var(--pixel-font-lg)',
                 fontStyle: isSub ? 'italic' : undefined,
                 color: 'var(--vscode-foreground)',
                 background: 'rgba(30,30,46,0.7)',

@@ -13,7 +13,7 @@ import {
   CHARACTER_HIT_HALF_WIDTH,
   CHARACTER_HIT_HEIGHT,
 } from '../../constants.js'
-import type { Character, Seat, FurnitureInstance, TileType as TileTypeVal, OfficeLayout, PlacedFurniture } from '../types.js'
+import type { AgentId, Character, Seat, FurnitureInstance, TileType as TileTypeVal, OfficeLayout, PlacedFurniture } from '../types.js'
 import { createCharacter, updateCharacter } from './characters.js'
 import { matrixEffectSeeds } from './matrixEffect.js'
 import { isWalkable, getWalkableTiles, findPath } from '../layout/tileMap.js'
@@ -33,16 +33,16 @@ export class OfficeState {
   blockedTiles: Set<string>
   furniture: FurnitureInstance[]
   walkableTiles: Array<{ col: number; row: number }>
-  characters: Map<number, Character> = new Map()
-  selectedAgentId: number | null = null
-  cameraFollowId: number | null = null
-  hoveredAgentId: number | null = null
+  characters: Map<AgentId, Character> = new Map()
+  selectedAgentId: AgentId | null = null
+  cameraFollowId: AgentId | null = null
+  hoveredAgentId: AgentId | null = null
   hoveredTile: { col: number; row: number } | null = null
-  /** Maps "parentId:toolId" → sub-agent character ID (negative) */
-  subagentIdMap: Map<string, number> = new Map()
+  /** Maps "parentId:toolId" → sub-agent character ID */
+  subagentIdMap: Map<string, AgentId> = new Map()
   /** Reverse lookup: sub-agent character ID → parent info */
-  subagentMeta: Map<number, { parentAgentId: number; parentToolId: string }> = new Map()
-  private nextSubagentId = -1
+  subagentMeta: Map<AgentId, { parentAgentId: AgentId; parentToolId: string }> = new Map()
+  private nextSubagentSeq = 1
 
   constructor(layout?: OfficeLayout) {
     this.layout = layout || createDefaultLayout()
@@ -198,8 +198,53 @@ export class OfficeState {
     return { palette, hueShift }
   }
 
-  addAgent(id: number, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean): void {
-    if (this.characters.has(id)) return
+  addAgent(id: AgentId, preferredPalette?: number, preferredHueShift?: number, preferredSeatId?: string, skipSpawnEffect?: boolean): void {
+    const existing = this.characters.get(id)
+    if (existing) {
+      if (!existing.isHistorical) return
+
+      // Promote historical character to a live agent in-place.
+      existing.isHistorical = false
+      existing.isSubagent = false
+      existing.parentAgentId = null
+      existing.isActive = true
+      existing.currentTool = null
+      existing.bubbleType = null
+      existing.bubbleTimer = 0
+      existing.seatTimer = 0
+      existing.path = []
+      existing.moveProgress = 0
+      existing.state = CharacterState.TYPE
+      existing.frame = 0
+      existing.frameTimer = 0
+      existing.wanderTimer = 0
+      existing.wanderCount = 0
+      if (preferredPalette !== undefined) {
+        existing.palette = preferredPalette
+      }
+      if (preferredHueShift !== undefined) {
+        existing.hueShift = preferredHueShift
+      }
+      // Optional seat reassignment only when explicitly requested.
+      if (preferredSeatId && this.seats.has(preferredSeatId)) {
+        const seat = this.seats.get(preferredSeatId)!
+        if (!seat.assigned) {
+          seat.assigned = true
+          existing.seatId = preferredSeatId
+          existing.tileCol = seat.seatCol
+          existing.tileRow = seat.seatRow
+          existing.x = seat.seatCol * TILE_SIZE + TILE_SIZE / 2
+          existing.y = seat.seatRow * TILE_SIZE + TILE_SIZE / 2
+          existing.dir = seat.facingDir
+        }
+      }
+      if (!skipSpawnEffect) {
+        existing.matrixEffect = 'spawn'
+        existing.matrixEffectTimer = 0
+        existing.matrixEffectSeeds = matrixEffectSeeds()
+      }
+      return
+    }
 
     let palette: number
     let hueShift: number
@@ -249,7 +294,7 @@ export class OfficeState {
     this.characters.set(id, ch)
   }
 
-  addHistoricalAgent(id: number): void {
+  addHistoricalAgent(id: AgentId): void {
     if (this.characters.has(id)) return
 
     const pick = this.pickDiversePalette()
@@ -272,7 +317,7 @@ export class OfficeState {
     this.characters.set(id, ch)
   }
 
-  removeHistoricalAgent(id: number): void {
+  removeHistoricalAgent(id: AgentId): void {
     const ch = this.characters.get(id)
     if (!ch || !ch.isHistorical) return
     this.characters.delete(id)
@@ -280,7 +325,7 @@ export class OfficeState {
     if (this.cameraFollowId === id) this.cameraFollowId = null
   }
 
-  removeAgent(id: number): void {
+  removeAgent(id: AgentId): void {
     const ch = this.characters.get(id)
     if (!ch) return
     if (ch.matrixEffect === 'despawn') return // already despawning
@@ -307,7 +352,7 @@ export class OfficeState {
   }
 
   /** Reassign an agent from their current seat to a new seat */
-  reassignSeat(agentId: number, seatId: string): void {
+  reassignSeat(agentId: AgentId, seatId: string): void {
     const ch = this.characters.get(agentId)
     if (!ch) return
     // Unassign old seat
@@ -343,7 +388,7 @@ export class OfficeState {
   }
 
   /** Send an agent back to their currently assigned seat */
-  sendToSeat(agentId: number): void {
+  sendToSeat(agentId: AgentId): void {
     const ch = this.characters.get(agentId)
     if (!ch || !ch.seatId) return
     const seat = this.seats.get(ch.seatId)
@@ -370,7 +415,7 @@ export class OfficeState {
   }
 
   /** Walk an agent to an arbitrary walkable tile (right-click command) */
-  walkToTile(agentId: number, col: number, row: number): boolean {
+  walkToTile(agentId: AgentId, col: number, row: number): boolean {
     const ch = this.characters.get(agentId)
     if (!ch || ch.isSubagent || ch.isHistorical) return false
     if (!isWalkable(col, row, this.tileMap, this.blockedTiles)) {
@@ -391,11 +436,11 @@ export class OfficeState {
   }
 
   /** Create a sub-agent character with the parent's palette. Returns the sub-agent ID. */
-  addSubagent(parentAgentId: number, parentToolId: string): number {
+  addSubagent(parentAgentId: AgentId, parentToolId: string): AgentId {
     const key = `${parentAgentId}:${parentToolId}`
     if (this.subagentIdMap.has(key)) return this.subagentIdMap.get(key)!
 
-    const id = this.nextSubagentId--
+    const id: AgentId = `sub:${this.nextSubagentSeq++}`
     const parentCh = this.characters.get(parentAgentId)
     const palette = parentCh ? parentCh.palette : 0
     const hueShift = parentCh ? parentCh.hueShift : 0
@@ -457,7 +502,7 @@ export class OfficeState {
   }
 
   /** Remove a specific sub-agent character and free its seat */
-  removeSubagent(parentAgentId: number, parentToolId: string): void {
+  removeSubagent(parentAgentId: AgentId, parentToolId: string): void {
     const key = `${parentAgentId}:${parentToolId}`
     const id = this.subagentIdMap.get(key)
     if (id === undefined) return
@@ -488,7 +533,7 @@ export class OfficeState {
   }
 
   /** Remove all sub-agents belonging to a parent agent */
-  removeAllSubagents(parentAgentId: number): void {
+  removeAllSubagents(parentAgentId: AgentId): void {
     const toRemove: string[] = []
     for (const [key, id] of this.subagentIdMap) {
       const meta = this.subagentMeta.get(id)
@@ -523,11 +568,11 @@ export class OfficeState {
   }
 
   /** Look up the sub-agent character ID for a given parent+toolId, or null */
-  getSubagentId(parentAgentId: number, parentToolId: string): number | null {
+  getSubagentId(parentAgentId: AgentId, parentToolId: string): AgentId | null {
     return this.subagentIdMap.get(`${parentAgentId}:${parentToolId}`) ?? null
   }
 
-  setAgentActive(id: number, active: boolean): void {
+  setAgentActive(id: AgentId, active: boolean): void {
     const ch = this.characters.get(id)
     if (ch) {
       if (ch.isHistorical) return
@@ -603,14 +648,14 @@ export class OfficeState {
     this.furniture = layoutToFurnitureInstances(modifiedFurniture)
   }
 
-  setAgentTool(id: number, tool: string | null): void {
+  setAgentTool(id: AgentId, tool: string | null): void {
     const ch = this.characters.get(id)
     if (ch) {
       ch.currentTool = tool
     }
   }
 
-  showPermissionBubble(id: number): void {
+  showPermissionBubble(id: AgentId): void {
     const ch = this.characters.get(id)
     if (ch) {
       ch.bubbleType = 'permission'
@@ -618,7 +663,7 @@ export class OfficeState {
     }
   }
 
-  clearPermissionBubble(id: number): void {
+  clearPermissionBubble(id: AgentId): void {
     const ch = this.characters.get(id)
     if (ch && ch.bubbleType === 'permission') {
       ch.bubbleType = null
@@ -626,7 +671,7 @@ export class OfficeState {
     }
   }
 
-  showWaitingBubble(id: number): void {
+  showWaitingBubble(id: AgentId): void {
     const ch = this.characters.get(id)
     if (ch) {
       ch.bubbleType = 'waiting'
@@ -635,7 +680,7 @@ export class OfficeState {
   }
 
   /** Dismiss bubble on click — permission: instant, waiting: quick fade */
-  dismissBubble(id: number): void {
+  dismissBubble(id: AgentId): void {
     const ch = this.characters.get(id)
     if (!ch || !ch.bubbleType) return
     if (ch.bubbleType === 'permission') {
@@ -648,7 +693,7 @@ export class OfficeState {
   }
 
   update(dt: number): void {
-    const toDelete: number[] = []
+    const toDelete: AgentId[] = []
     for (const ch of this.characters.values()) {
       // Handle matrix effect animation
       if (ch.matrixEffect) {
@@ -692,7 +737,7 @@ export class OfficeState {
   }
 
   /** Get character at pixel position (for hit testing). Returns id or null. */
-  getCharacterAt(worldX: number, worldY: number): number | null {
+  getCharacterAt(worldX: number, worldY: number): AgentId | null {
     const chars = this.getCharacters().sort((a, b) => b.y - a.y)
     for (const ch of chars) {
       // Skip characters that are despawning

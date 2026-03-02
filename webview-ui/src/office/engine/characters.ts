@@ -1,5 +1,5 @@
 import { CharacterState, Direction, TILE_SIZE } from '../types.js'
-import type { Character, Seat, SpriteData, TileType as TileTypeVal } from '../types.js'
+import type { AgentId, Character, Seat, SpriteData, TileType as TileTypeVal } from '../types.js'
 import type { CharacterSprites } from '../sprites/spriteData.js'
 import { findPath } from '../layout/tileMap.js'
 import {
@@ -41,7 +41,7 @@ function directionBetween(fromCol: number, fromRow: number, toCol: number, toRow
 }
 
 export function createCharacter(
-  id: number,
+  id: AgentId,
   palette: number,
   seatId: string | null,
   seat: Seat | null,

@@ -88,6 +88,18 @@ function ensureSessionExists(sessionId: string, at: number): void {
   });
 }
 
+function toNumericAgentId(id: string): number {
+  const parsed = Number.parseInt(id, 10);
+  if (Number.isFinite(parsed)) {
+    return parsed;
+  }
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) {
+    hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) || 1;
+}
+
 function advanceSessionToStage(sessionId: string, targetStage: SessionStage, at: number): void {
   const session = store.snapshot().sessions[sessionId];
   if (!session) {
@@ -124,7 +136,7 @@ function applyMessage(message: HarnessInboundMessage): void {
       store.dispatch({ type: 'layoutReplaced', layout: message.layout, at });
       break;
     case 'agentCreated':
-      store.dispatch({ type: 'agentAdded', id: message.id, at });
+      store.dispatch({ type: 'agentAdded', id: toNumericAgentId(message.id), at });
       break;
     case 'agentStatus':
       {
@@ -132,25 +144,25 @@ function applyMessage(message: HarnessInboundMessage): void {
         if (!status) {
           break;
         }
-        store.dispatch({ type: 'agentStatusSet', id: message.id, status, at });
+        store.dispatch({ type: 'agentStatusSet', id: toNumericAgentId(message.id), status, at });
       }
       break;
     case 'agentToolStart':
       store.dispatch({
         type: 'agentToolSet',
-        id: message.id,
+        id: toNumericAgentId(message.id),
         toolId: message.toolId,
         label: message.status,
         at,
       });
       break;
     case 'agentToolsClear':
-      store.dispatch({ type: 'agentToolSet', id: message.id, toolId: null, label: null, at });
+      store.dispatch({ type: 'agentToolSet', id: toNumericAgentId(message.id), toolId: null, label: null, at });
       break;
     case 'agentToolPermission':
       store.dispatch({
         type: 'agentPermissionWaitingSet',
-        id: message.id,
+        id: toNumericAgentId(message.id),
         waiting: true,
         at,
       });
@@ -158,7 +170,7 @@ function applyMessage(message: HarnessInboundMessage): void {
     case 'agentToolPermissionClear':
       store.dispatch({
         type: 'agentPermissionWaitingSet',
-        id: message.id,
+        id: toNumericAgentId(message.id),
         waiting: false,
         at,
       });
@@ -185,9 +197,9 @@ bridge.onMessage((message) => {
 
 const demoMessages: HarnessInboundMessage[] = [
   { type: 'layoutLoaded', layout: { version: 1, seats: [] } },
-  { type: 'agentCreated', id: 1 },
-  { type: 'agentStatus', id: 1, status: 'active' },
-  { type: 'agentToolStart', id: 1, toolId: 'tool-1', status: 'Read files' },
+  { type: 'agentCreated', id: 'demo-session-1' },
+  { type: 'agentStatus', id: 'demo-session-1', status: 'active' },
+  { type: 'agentToolStart', id: 'demo-session-1', toolId: 'tool-1', status: 'Read files' },
   {
     type: 'trackingEvent',
     event: { type: 'tracking_attempt', jsonlPath: '/tmp/session-1.jsonl', at: Date.now() },
@@ -200,10 +212,10 @@ const demoMessages: HarnessInboundMessage[] = [
     type: 'trackingEvent',
     event: { type: 'tracking_success', jsonlPath: '/tmp/session-1.jsonl', at: Date.now() },
   },
-  { type: 'agentStatus', id: 1, status: 'waiting' },
-  { type: 'agentToolPermission', id: 1 },
-  { type: 'agentToolPermissionClear', id: 1 },
-  { type: 'agentToolsClear', id: 1 },
+  { type: 'agentStatus', id: 'demo-session-1', status: 'waiting' },
+  { type: 'agentToolPermission', id: 'demo-session-1' },
+  { type: 'agentToolPermissionClear', id: 'demo-session-1' },
+  { type: 'agentToolsClear', id: 'demo-session-1' },
   {
     type: 'trackingEvent',
     event: {

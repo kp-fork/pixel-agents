@@ -7,6 +7,8 @@ export {
   MATRIX_EFFECT_DURATION_SEC as MATRIX_EFFECT_DURATION,
 } from '../constants.js'
 
+export type AgentId = string
+
 export const TileType = {
   WALL: 0,
   FLOOR_1: 1,
@@ -143,7 +145,7 @@ export interface OfficeLayout {
 }
 
 export interface Character {
-  id: number
+  id: AgentId
   state: CharacterState
   dir: Direction
   /** Pixel position */
@@ -186,7 +188,7 @@ export interface Character {
   /** Whether this character represents a sub-agent (spawned by Task tool) */
   isSubagent: boolean
   /** Parent agent ID if this is a sub-agent, null otherwise */
-  parentAgentId: number | null
+  parentAgentId: AgentId | null
   /** Whether this character is a read-only history session preview */
   isHistorical: boolean
   /** Active matrix spawn/despawn effect, or null */
