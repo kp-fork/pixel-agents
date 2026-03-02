@@ -2845,6 +2845,54 @@
       "type": "lamp",
       "col": 9,
       "row": 15
+    },
+    {
+      "uid": "cafe-refresh-01",
+      "type": "CUSTOM_OFFICE_GLASS_PARTITION",
+      "col": 8,
+      "row": 9
+    },
+    {
+      "uid": "cafe-refresh-02",
+      "type": "CUSTOM_OFFICE_GLASS_PARTITION",
+      "col": 10,
+      "row": 8
+    },
+    {
+      "uid": "cafe-refresh-03",
+      "type": "CUSTOM_OFFICE_FILE_CABINET",
+      "col": 2,
+      "row": 15
+    },
+    {
+      "uid": "cafe-refresh-04",
+      "type": "CUSTOM_OFFICE_FILE_CABINET",
+      "col": 18,
+      "row": 15
+    },
+    {
+      "uid": "cafe-refresh-05",
+      "type": "CUSTOM_LAB_CONSOLE",
+      "col": 6,
+      "row": 1
+    },
+    {
+      "uid": "cafe-refresh-06",
+      "type": "CUSTOM_LAB_CONSOLE",
+      "col": 12,
+      "row": 1
+    },
+    {
+      "uid": "cafe-refresh-07",
+      "type": "CUSTOM_LAB_SERVER_RACK",
+      "col": 1,
+      "row": 10
+    },
+    {
+      "uid": "cafe-refresh-08",
+      "type": "CUSTOM_LAB_SERVER_RACK",
+      "col": 19,
+      "row": 8
     }
   ]
 }

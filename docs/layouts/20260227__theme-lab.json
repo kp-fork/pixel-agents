@@ -2786,6 +2786,60 @@
       "type": "whiteboard",
       "col": 9,
       "row": 0
+    },
+    {
+      "uid": "lab-refresh-01",
+      "type": "CUSTOM_OFFICE_GLASS_PARTITION",
+      "col": 5,
+      "row": 7
+    },
+    {
+      "uid": "lab-refresh-02",
+      "type": "CUSTOM_OFFICE_GLASS_PARTITION",
+      "col": 11,
+      "row": 7
+    },
+    {
+      "uid": "lab-refresh-03",
+      "type": "CUSTOM_OFFICE_FILE_CABINET",
+      "col": 2,
+      "row": 5
+    },
+    {
+      "uid": "lab-refresh-04",
+      "type": "CUSTOM_OFFICE_FILE_CABINET",
+      "col": 18,
+      "row": 5
+    },
+    {
+      "uid": "lab-refresh-05",
+      "type": "CUSTOM_CAFE_COUNTER",
+      "col": 8,
+      "row": 16
+    },
+    {
+      "uid": "lab-refresh-06",
+      "type": "CUSTOM_CAFE_STOOL",
+      "col": 7,
+      "row": 16
+    },
+    {
+      "uid": "lab-refresh-07",
+      "type": "CUSTOM_CAFE_STOOL",
+      "col": 9,
+      "row": 15
+    },
+    {
+      "uid": "lab-refresh-08",
+      "type": "CUSTOM_CAFE_MENU_BOARD",
+      "col": 4,
+      "row": 0
+    },
+    {
+      "uid": "lab-refresh-09",
+      "type": "CUSTOM_CAFE_MENU_BOARD",
+      "col": 14,
+      "row": 0
     }
   ]
 }

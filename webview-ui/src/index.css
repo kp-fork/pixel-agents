@@ -1,9 +1,9 @@
 @font-face {
-  font-family: 'FS Pixel Sans';
+  font-family: 'Edit Undo Line';
   font-style: normal;
-  font-weight: 400;
+  font-weight: 300;
   font-display: swap;
-  src: url('./fonts/FSPixelSansUnicode-Regular.ttf') format('truetype');
+  src: url('./fonts/EditUndoLine-Regular.ttf') format('truetype');
 }
 
 :root {
@@ -33,6 +33,8 @@
   /* Close button */
   --pixel-close-text: rgba(255, 255, 255, 0.5);
   --pixel-close-hover: #e55;
+  --pixel-hover-card-bg: rgba(30, 30, 46, 0.78);
+  --pixel-history-chip-bg: rgba(18, 18, 26, 0.72);
 
   /* Hints & confirmations */
   --pixel-hint-bg: #3278c8;
@@ -50,6 +52,20 @@
   --pixel-overlay-z: 40;
   --pixel-overlay-selected-z: 41;
   --pixel-controls-z: 50;
+
+  /* Typography scale */
+  --pixel-font-xxs: 9px;
+  --pixel-font-xs: 10px;
+  --pixel-font-sm: 13px;
+  --pixel-font-md: 14px;
+  --pixel-font-lg: 15px;
+  --pixel-font-xl: 17px;
+  --pixel-font-2xl: 19px;
+  --pixel-font-3xl: 20px;
+  --pixel-font-4xl: 22px;
+  --pixel-font-5xl: 24px;
+  --pixel-font-weight: 300;
+  --pixel-letter-spacing: 0.1px;
 }
 
 html, body, #root {
@@ -57,9 +73,11 @@ html, body, #root {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  font-family: 'FS Pixel Sans', sans-serif;
+  font-family: 'Edit Undo Line', sans-serif;
+  font-weight: var(--pixel-font-weight);
 }
 
 * {
-  font-family: 'FS Pixel Sans', sans-serif;
+  font-family: 'Edit Undo Line', sans-serif;
+  font-weight: var(--pixel-font-weight);
 }

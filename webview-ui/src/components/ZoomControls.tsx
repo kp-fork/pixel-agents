@@ -83,7 +83,7 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
             borderRadius: 0,
             padding: '4px 12px',
             boxShadow: 'var(--pixel-shadow)',
-            fontSize: '26px',
+            fontSize: 'var(--pixel-font-lg)',
             color: 'var(--pixel-text)',
             userSelect: 'none',
             opacity: fadeOut ? 0 : 1,
@@ -95,12 +95,12 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
         </div>
       )}
 
-      {/* Vertically stacked round buttons — top-left */}
+      {/* Vertically stacked round buttons — bottom-right */}
       <div
         style={{
           position: 'absolute',
-          top: 8,
-          left: 8,
+          bottom: 10,
+          right: 8,
           zIndex: 'var(--pixel-controls-z)',
           display: 'flex',
           flexDirection: 'column',

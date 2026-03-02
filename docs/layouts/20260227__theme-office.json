@@ -2865,6 +2865,66 @@
       "type": "whiteboard",
       "col": 16,
       "row": 0
+    },
+    {
+      "uid": "office-refresh-01",
+      "type": "CUSTOM_CAFE_COUNTER",
+      "col": 8,
+      "row": 17
+    },
+    {
+      "uid": "office-refresh-02",
+      "type": "CUSTOM_CAFE_TABLE_ROUND",
+      "col": 11,
+      "row": 14
+    },
+    {
+      "uid": "office-refresh-03",
+      "type": "CUSTOM_CAFE_STOOL",
+      "col": 10,
+      "row": 14
+    },
+    {
+      "uid": "office-refresh-04",
+      "type": "CUSTOM_CAFE_STOOL",
+      "col": 13,
+      "row": 14
+    },
+    {
+      "uid": "office-refresh-05",
+      "type": "CUSTOM_CAFE_STOOL",
+      "col": 11,
+      "row": 13
+    },
+    {
+      "uid": "office-refresh-06",
+      "type": "CUSTOM_CAFE_STOOL",
+      "col": 12,
+      "row": 16
+    },
+    {
+      "uid": "office-refresh-07",
+      "type": "CUSTOM_CAFE_MENU_BOARD",
+      "col": 6,
+      "row": 0
+    },
+    {
+      "uid": "office-refresh-08",
+      "type": "CUSTOM_CAFE_MENU_BOARD",
+      "col": 10,
+      "row": 0
+    },
+    {
+      "uid": "office-refresh-09",
+      "type": "CUSTOM_LAB_CONSOLE",
+      "col": 9,
+      "row": 19
+    },
+    {
+      "uid": "office-refresh-10",
+      "type": "CUSTOM_LAB_SERVER_RACK",
+      "col": 18,
+      "row": 18
     }
   ]
 }
