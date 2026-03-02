@@ -56,7 +56,7 @@ function writeJsonlWithTaggedPreview(dir: string, sessionId: string, daysAgo: nu
     sessionId,
     timestamp: iso,
     message: {
-      content: '<local-command-stdout>build passed</local-command-stdout>',
+      content: '<tag>build passed</tag>',
     },
   });
   fs.writeFileSync(filePath, `${line}\n`, 'utf-8');
@@ -97,6 +97,82 @@ function writeJsonlWithLongAssistantTail(
   return filePath;
 }
 
+function writeJsonlWithExitAssistantTail(
+  dir: string,
+  sessionId: string,
+  daysAgo: number,
+): string {
+  const filePath = path.join(dir, `${sessionId}.jsonl`);
+  const now = Date.now();
+  const ts = new Date(now - (daysAgo * 24 * 60 * 60 * 1000));
+  const iso = ts.toISOString();
+  const lines: string[] = [];
+  lines.push(JSON.stringify({
+    type: 'user',
+    isMeta: false,
+    isSidechain: false,
+    sessionId,
+    timestamp: iso,
+    message: { content: 'history summary test' },
+  }));
+  lines.push(JSON.stringify({
+    type: 'assistant',
+    sessionId,
+    timestamp: iso,
+    message: { content: '작업 정리 완료했습니다.' },
+  }));
+  lines.push(JSON.stringify({
+    type: 'assistant',
+    sessionId,
+    timestamp: iso,
+    message: { content: '세션을 종료하려면 /exit 를 입력하세요.' },
+  }));
+  fs.writeFileSync(filePath, `${lines.join('\n')}\n`, 'utf-8');
+  fs.utimesSync(filePath, ts, ts);
+  return filePath;
+}
+
+function writeJsonlWithSystemLikeAssistantTail(
+  dir: string,
+  sessionId: string,
+  daysAgo: number,
+): string {
+  const filePath = path.join(dir, `${sessionId}.jsonl`);
+  const now = Date.now();
+  const ts = new Date(now - (daysAgo * 24 * 60 * 60 * 1000));
+  const iso = ts.toISOString();
+  const lines: string[] = [];
+  lines.push(JSON.stringify({
+    type: 'user',
+    isMeta: false,
+    isSidechain: false,
+    sessionId,
+    timestamp: iso,
+    message: { content: 'summary quality test' },
+  }));
+  lines.push(JSON.stringify({
+    type: 'assistant',
+    sessionId,
+    timestamp: iso,
+    message: { content: '작업 계획을 정리했습니다.' },
+  }));
+  lines.push(JSON.stringify({
+    type: 'assistant',
+    sessionId,
+    timestamp: iso,
+    message: { content: 'No response requested.' },
+  }));
+  lines.push(JSON.stringify({
+    type: 'assistant',
+    sessionId,
+    timestamp: iso,
+    message: { content: '네.' },
+  }));
+  fs.writeFileSync(filePath, `${lines.join('\n')}\n`, 'utf-8');
+  fs.utimesSync(filePath, ts, ts);
+  return filePath;
+}
+
 function mkSessionId(seed: string): string {
   const clean = seed.replace(/[^0-9a-f]/gi, '').padEnd(32, '0').slice(0, 32).toLowerCase();
   return `${clean.slice(0, 8)}-${clean.slice(8, 12)}-${clean.slice(12, 16)}-${clean.slice(16, 20)}-${clean.slice(20)}`;
@@ -113,6 +189,8 @@ async function main(): Promise<void> {
     const s6 = mkSessionId('66666666666666666666666666666666');
     const s7 = mkSessionId('77777777777777777777777777777777');
     const s8 = mkSessionId('88888888888888888888888888888888');
+    const s9 = mkSessionId('99999999999999999999999999999999');
+    const sa = mkSessionId('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 
     const recentLive = writeJsonl(tempRoot, s1, 0);
     writeJsonl(tempRoot, s2, 1);
@@ -122,6 +200,8 @@ async function main(): Promise<void> {
     writeSnapshotOnlyJsonl(tempRoot, s6, 1);
     writeJsonlWithTaggedPreview(tempRoot, s7, 1);
     writeJsonlWithLongAssistantTail(tempRoot, s8, 1, 'Build API gateway for tenant auth');
+    writeJsonlWithExitAssistantTail(tempRoot, s9, 1);
+    writeJsonlWithSystemLikeAssistantTail(tempRoot, sa, 1);
 
     const recent = collectHistorySessions(
       tempRoot,
@@ -129,10 +209,10 @@ async function main(): Promise<void> {
       { enabled: true, lookbackDays: 3, maxVisible: 10 },
     );
 
-    assert(recent.length === 4, `expected 4 recent sessions, got ${recent.length}`);
+    assert(recent.length === 6, `expected 6 recent sessions, got ${recent.length}`);
     assert(recent.every((s) => s.jsonlPath !== recentLive), 'live session path must be excluded');
     assert(
-      recent.every((s) => s.sessionId === s2 || s.sessionId === s3 || s.sessionId === s7 || s.sessionId === s8),
+      recent.every((s) => s.sessionId === s2 || s.sessionId === s3 || s.sessionId === s7 || s.sessionId === s8 || s.sessionId === s9 || s.sessionId === sa),
       'unexpected session IDs in result',
     );
     assert(recent.every((s) => s.sessionId !== s5), 'team/subagent session must be excluded');
@@ -145,13 +225,27 @@ async function main(): Promise<void> {
     );
     const tagged = withPreview.find((s) => s.sessionId === s7);
     assert(!!tagged, 'expected tagged preview session to be present');
-    assert(tagged!.preview === 'build passed', `expected stripped tagged preview, got "${tagged!.preview}"`);
+    assert(tagged!.title === 'build passed', `expected stripped tagged title, got "${tagged!.title}"`);
 
     const longTail = withPreview.find((s) => s.sessionId === s8);
     assert(!!longTail, 'expected long-tail session to be present');
     assert(
-      longTail!.preview === 'Build API gateway for tenant auth',
-      `expected first user preview fallback, got "${longTail!.preview}"`,
+      longTail!.title === 'Build API gateway for tenant auth',
+      `expected first user preview fallback, got "${longTail!.title}"`,
+    );
+
+    const withExitTail = withPreview.find((s) => s.sessionId === s9);
+    assert(!!withExitTail, 'expected exit-tail session to be present');
+    assert(
+      withExitTail!.summary === '작업 정리 완료했습니다.',
+      `expected non-exit latest assistant summary, got "${withExitTail!.summary}"`,
+    );
+
+    const withSystemLikeTail = withPreview.find((s) => s.sessionId === sa);
+    assert(!!withSystemLikeTail, 'expected system-like-tail session to be present');
+    assert(
+      withSystemLikeTail!.summary === '작업 계획을 정리했습니다.',
+      `expected latest non-system-like assistant summary, got "${withSystemLikeTail!.summary}"`,
     );
 
     const capped = collectHistorySessions(

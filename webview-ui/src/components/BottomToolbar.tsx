@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { SettingsModal } from './SettingsModal.js'
 import { LayoutModal } from './LayoutModal.js'
+import { ZOOM_MIN, ZOOM_MAX } from '../constants.js'
 
 interface BottomToolbarProps {
   isEditMode: boolean
@@ -8,6 +9,8 @@ interface BottomToolbarProps {
   onToggleEditMode: () => void
   isDebugMode: boolean
   onToggleDebugMode: () => void
+  zoom: number
+  onZoomChange: (zoom: number) => void
   historySessionsEnabled: boolean
   onToggleHistorySessions: (enabled: boolean) => void
 }
@@ -50,12 +53,16 @@ export function BottomToolbar({
   onToggleEditMode,
   isDebugMode,
   onToggleDebugMode,
+  zoom,
+  onZoomChange,
   historySessionsEnabled,
   onToggleHistorySessions,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [isLayoutOpen, setIsLayoutOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const minDisabled = zoom <= ZOOM_MIN
+  const maxDisabled = zoom >= ZOOM_MAX
 
   return (
     <div style={panelStyle}>
@@ -133,6 +140,42 @@ export function BottomToolbar({
           historySessionsEnabled={historySessionsEnabled}
           onToggleHistorySessions={onToggleHistorySessions}
         />
+      </div>
+      <div style={{ display: 'flex', gap: 2, marginLeft: 2 }}>
+        <button
+          onClick={() => onZoomChange(zoom - 1)}
+          disabled={minDisabled}
+          onMouseEnter={() => setHovered('zoom-minus')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...btnBase,
+            width: 28,
+            padding: '5px 0',
+            background: hovered === 'zoom-minus' && !minDisabled ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+            cursor: minDisabled ? 'default' : 'pointer',
+            opacity: minDisabled ? 'var(--pixel-btn-disabled-opacity)' : 1,
+          }}
+          title="Zoom out (Ctrl+Scroll)"
+        >
+          -
+        </button>
+        <button
+          onClick={() => onZoomChange(zoom + 1)}
+          disabled={maxDisabled}
+          onMouseEnter={() => setHovered('zoom-plus')}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            ...btnBase,
+            width: 28,
+            padding: '5px 0',
+            background: hovered === 'zoom-plus' && !maxDisabled ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+            cursor: maxDisabled ? 'default' : 'pointer',
+            opacity: maxDisabled ? 'var(--pixel-btn-disabled-opacity)' : 1,
+          }}
+          title="Zoom in (Ctrl+Scroll)"
+        >
+          +
+        </button>
       </div>
     </div>
   )

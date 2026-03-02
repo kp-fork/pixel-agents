@@ -121,7 +121,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			jsonlPath: session.jsonlPath,
 			createdAt: new Date(session.createdAtMs).toISOString(),
 			lastActivityAt: new Date(session.lastActivityAtMs).toISOString(),
-			preview: session.preview,
+			title: session.title,
+			summary: session.summary,
 		}));
 
 		postToWebview(this.webview, { type: 'historySessionsLoaded', sessions });

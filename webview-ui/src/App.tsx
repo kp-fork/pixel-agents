@@ -12,9 +12,9 @@ import { useExtensionMessages } from './hooks/useExtensionMessages.js'
 import { PULSE_ANIMATION_DURATION_SEC } from './constants.js'
 import { useEditorActions } from './hooks/useEditorActions.js'
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js'
-import { ZoomControls } from './components/ZoomControls.js'
 import { BottomToolbar } from './components/BottomToolbar.js'
 import { DebugView } from './components/DebugView.js'
+import { toHistoryTitleSnippet, toHistorySummaryText } from './historyText.js'
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null }
@@ -70,13 +70,6 @@ function formatDateTimeCompact(iso: string): string {
   const MM = String(d.getMinutes()).padStart(2, '0')
   const SS = String(d.getSeconds()).padStart(2, '0')
   return `${yyyy}.${mm}.${dd} ${HH}:${MM}:${SS}`
-}
-
-function toHistoryTitleSnippet(preview: string, sessionId: string): string {
-  const base = (preview || '').replace(/\s+/g, ' ').trim() || sessionId
-  const maxLen = 28
-  if (base.length <= maxLen) return base
-  return `${base.slice(0, maxLen - 1)}…`
 }
 
 function EditActionBar({ editor, editorState: es }: { editor: ReturnType<typeof useEditorActions>; editorState: EditorState }) {
@@ -277,10 +270,9 @@ function App() {
         panRef={editor.panRef}
       />
 
-      <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />
-
       {hoveredHistory && (() => {
-        const title = toHistoryTitleSnippet(hoveredHistory.preview, hoveredHistory.sessionId) || hoveredHistory.sessionId
+        const title = toHistoryTitleSnippet(hoveredHistory.title, hoveredHistory.sessionId) || hoveredHistory.sessionId
+        const summary = toHistorySummaryText(hoveredHistory.summary)
         return (
         <div
           style={{
@@ -294,6 +286,7 @@ function App() {
             padding: '8px 10px',
             width: 320,
             pointerEvents: 'none',
+            textAlign: 'left',
           }}
         >
           <div style={{ fontSize: 'var(--pixel-font-sm)', color: 'var(--vscode-foreground)', marginBottom: 4 }}>
@@ -324,14 +317,26 @@ function App() {
               </div>
             </div>
           </div>
-          <div style={{ fontSize: 'var(--pixel-font-sm)', color: 'var(--pixel-text-dim)', marginBottom: 4 }}>
+          <div style={{ fontSize: 'var(--pixel-font-xxs)', color: 'var(--pixel-text-dim)', marginBottom: 4, textAlign: 'left' }}>
             Last active: {formatDateTimeCompact(hoveredHistory.lastActivityAt)}
           </div>
-          <div style={{ fontSize: 'var(--pixel-font-sm)', color: 'var(--pixel-text-dim)', marginBottom: 6 }}>
+          <div style={{ fontSize: 'var(--pixel-font-xxs)', color: 'var(--pixel-text-dim)', marginBottom: 6, textAlign: 'left' }}>
             Created: {formatDateTimeCompact(hoveredHistory.createdAt)}
           </div>
-          <div style={{ fontSize: 'var(--pixel-font-sm)', color: 'var(--vscode-foreground)', whiteSpace: 'pre-wrap', lineHeight: 1.3 }}>
-            {hoveredHistory.preview || '(No preview text)'}
+          <div
+            style={{
+              fontSize: 'var(--pixel-font-sm)',
+              color: 'var(--vscode-foreground)',
+              whiteSpace: 'pre-line',
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word',
+              lineHeight: 1.3,
+              textAlign: 'left',
+              maxHeight: 132,
+              overflowY: 'auto',
+            }}
+          >
+            {summary}
           </div>
         </div>
         )
@@ -354,6 +359,8 @@ function App() {
         onToggleEditMode={editor.handleToggleEditMode}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
+        zoom={editor.zoom}
+        onZoomChange={editor.handleZoomChange}
         historySessionsEnabled={historySessionsEnabled}
         onToggleHistorySessions={handleToggleHistorySessions}
       />

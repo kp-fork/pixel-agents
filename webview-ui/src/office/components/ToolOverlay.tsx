@@ -7,6 +7,7 @@ import type { AgentId } from '../types.js'
 import { TOOL_OVERLAY_VERTICAL_OFFSET, CHARACTER_SITTING_OFFSET_PX } from '../../constants.js'
 import { isAlwaysStatusBubblesEnabled } from '../../speechBubbles.js'
 import { deriveOverlayState } from './toolOverlayState.js'
+import { toHistoryTitleSnippet } from '../../historyText.js'
 
 interface ToolOverlayProps {
   officeState: OfficeState
@@ -44,13 +45,6 @@ export function ToolOverlay({
     }
     const diffDays = Math.floor(diffHours / 24)
     return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`
-  }
-
-  const toTitleSnippet = (preview: string, sessionId: string): string => {
-    const base = (preview || '').replace(/\s+/g, ' ').trim() || sessionId
-    const maxLen = 22
-    if (base.length <= maxLen) return base
-    return `${base.slice(0, maxLen - 1)}…`
   }
 
   const [, setTick] = useState(0)
@@ -91,7 +85,7 @@ export function ToolOverlay({
         if (!ch || !ch.isHistorical) return null
         const history = historyById.get(id)
         if (!history) return null
-        const title = toTitleSnippet(history.preview, history.sessionId)
+        const title = toHistoryTitleSnippet(history.title, history.sessionId, 24) || history.sessionId
 
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0
         const screenX = (deviceOffsetX + ch.x * zoom) / dpr
@@ -104,22 +98,22 @@ export function ToolOverlay({
               position: 'absolute',
               left: screenX,
               top: screenY - 16,
-              transform: 'translateX(-50%)',
+              transform: 'translateX(0)',
               pointerEvents: 'none',
               zIndex: 'var(--pixel-overlay-z)',
             }}
           >
             <div
               style={{
-                background: 'rgba(18, 18, 26, 0.88)',
+                background: 'var(--pixel-history-chip-bg)',
                 border: '1px solid rgba(255, 255, 255, 0.22)',
                 padding: '2px 6px',
                 lineHeight: 1.25,
                 color: 'var(--pixel-text-dim)',
-                fontSize: '15px',
+                fontSize: 'var(--pixel-font-md)',
                 minWidth: 170,
                 maxWidth: 210,
-                textAlign: 'right',
+                textAlign: 'left',
               }}
             >
               <div
@@ -127,8 +121,10 @@ export function ToolOverlay({
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  fontSize: '15px',
-                  opacity: 0.9,
+                  fontSize: 'var(--pixel-font-md)',
+                  color: 'var(--vscode-foreground)',
+                  fontWeight: 'var(--pixel-font-weight)',
+                  opacity: 1,
                 }}
               >
                 {title}
@@ -136,9 +132,9 @@ export function ToolOverlay({
               <div
                 style={{
                   whiteSpace: 'nowrap',
-                  fontSize: '10px',
-                  fontWeight: 400,
-                  letterSpacing: '0.1px',
+                  fontSize: 'var(--pixel-font-xxs)',
+                  fontWeight: 'var(--pixel-font-weight)',
+                  letterSpacing: 'var(--pixel-letter-spacing)',
                   color: 'var(--vscode-foreground)',
                   fontFamily: 'var(--vscode-font-family)',
                 }}
@@ -188,10 +184,10 @@ export function ToolOverlay({
               position: 'absolute',
               left: screenX,
               top: screenY - 24,
-              transform: 'translateX(-50%)',
+              transform: 'translateX(0)',
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               pointerEvents: isSelected ? 'auto' : 'none',
               zIndex: isSelected ? 'var(--pixel-overlay-selected-z)' : 'var(--pixel-overlay-z)',
             }}
@@ -226,7 +222,7 @@ export function ToolOverlay({
               )}
                 <span
                 style={{
-                  fontSize: isSub ? '20px' : '22px',
+                  fontSize: isSub ? 'var(--pixel-font-sm)' : 'var(--pixel-font-md)',
                   fontStyle: isSub ? 'italic' : undefined,
                   color: 'var(--vscode-foreground)',
                   overflow: 'hidden',
@@ -248,7 +244,7 @@ export function ToolOverlay({
                     color: 'var(--pixel-close-text)',
                     cursor: 'pointer',
                     padding: '0 2px',
-                    fontSize: '26px',
+                    fontSize: 'var(--pixel-font-lg)',
                     lineHeight: 1,
                     marginLeft: 2,
                     flexShrink: 0,

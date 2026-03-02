@@ -7,7 +7,8 @@ export interface HistorySessionRecord {
 	jsonlPath: string;
 	createdAtMs: number;
 	lastActivityAtMs: number;
-	preview: string;
+	title: string;
+	summary: string;
 }
 
 interface HistorySessionOptions {
@@ -107,14 +108,37 @@ function parseTimestampMs(value: unknown): number {
 }
 
 function normalizePreviewText(input: string): string {
-	return stripNonUserFacingCommandTags(input).replace(/\s+/g, ' ').trim();
+	return stripNonUserFacingCommandTags(input)
+		// Best-effort removal for XML-ish envelope tags that can leak into JSONL text blocks.
+		.replace(/<\/?[A-Za-z][\w:-]*(?:\s[^<>]*)?>/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
 }
 
 function stripNonUserFacingCommandTags(input: string): string {
 	return input
+		.replace(/<local-command-caveat\b[^>]*>[\s\S]*?<\/local-command-caveat>/gi, ' ')
 		.replace(/<\/?local-command-stdout\b[^>]*>/gi, ' ')
 		.replace(/<\/?local-command-stderr\b[^>]*>/gi, ' ')
+		.replace(/<persisted-output\b[^>]*>[\s\S]*?<\/persisted-output>/gi, ' ')
+		.replace(/<system-reminder\b[^>]*>[\s\S]*?<\/system-reminder>/gi, ' ')
 		.replace(/<\/>/g, ' ');
+}
+
+function isStructuredNonConversationText(input: string): boolean {
+	if (!input) return true;
+	return /<local-command-(?:caveat|stdout|stderr)\b/i.test(input)
+		|| /<command-(?:name|message|args)\b/i.test(input)
+		|| /<ide_(?:selection|opened_file)\b/i.test(input)
+		|| /<system-reminder\b/i.test(input)
+		|| /<persisted-output\b/i.test(input)
+		|| /<tool_use_error\b/i.test(input)
+		|| /<teammate-message\b/i.test(input);
+}
+
+function isControlCommandText(text: string): boolean {
+	const normalized = text.trim().toLowerCase();
+	return /^\/(?:exit|quit|plugin|clear|new|resume|help)\b/.test(normalized);
 }
 
 function truncatePreview(text: string, maxLen: number): string {
@@ -124,8 +148,54 @@ function truncatePreview(text: string, maxLen: number): string {
 	return `${text.slice(0, maxLen - 1)}\u2026`;
 }
 
+function isExitRelatedAssistantMessage(text: string): boolean {
+	const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+	if (!normalized) return true;
+	if (/^\/exit\b/.test(normalized)) return true;
+	if (/\b(?:goodbye|bye|see ya|catch you later)\b/.test(normalized)) return true;
+	if (/(?:세션|대화).{0,10}(?:종료|끝내|끝냄)/.test(normalized)) return true;
+	return false;
+}
+
+function isNoResponseAssistantMessage(text: string): boolean {
+	const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+	if (!normalized) return true;
+	return normalized === 'no response requested.'
+		|| normalized === 'no response requested'
+		|| normalized === 'no response needed.'
+		|| normalized === 'no response needed'
+		|| /^응답(?:이)?\s*필요(?:가)?\s*(?:없|없습)/.test(normalized);
+}
+
+function isTooShortAssistantSummary(text: string): boolean {
+	const compact = text
+		.replace(/```[\s\S]*?```/g, ' ')
+		.replace(/`[^`]*`/g, ' ')
+		.replace(/\[[^\]]+\]\([^)]+\)/g, ' ')
+		.replace(/[^\p{L}\p{N}]+/gu, '')
+		.trim();
+	// Ignore one-word / very short acknowledgements.
+	return compact.length > 0 && compact.length < 8;
+}
+
+function pickSummary(assistantPreviews: readonly string[]): string {
+	// Rule: use the latest assistant response that is not exit-related.
+	for (const candidate of assistantPreviews) {
+		const raw = (candidate || '').trim();
+		if (!raw) continue;
+		if (isExitRelatedAssistantMessage(raw)) continue;
+		if (isNoResponseAssistantMessage(raw)) continue;
+		if (isTooShortAssistantSummary(raw)) continue;
+		return raw;
+	}
+	return '';
+}
+
 function extractTextFromContent(content: unknown): string {
 	if (typeof content === 'string') {
+		if (isStructuredNonConversationText(content)) {
+			return '';
+		}
 		return normalizePreviewText(content);
 	}
 	if (!Array.isArray(content)) {
@@ -134,6 +204,9 @@ function extractTextFromContent(content: unknown): string {
 	const chunks: string[] = [];
 	for (const block of content as Array<{ type?: unknown; text?: unknown }>) {
 		if (block.type !== 'text' || typeof block.text !== 'string') {
+			continue;
+		}
+		if (isStructuredNonConversationText(block.text)) {
 			continue;
 		}
 		const trimmed = normalizePreviewText(block.text);
@@ -150,6 +223,9 @@ function extractPreviewFromRecord(record: JsonlRecord): string {
 	if (!text) {
 		return '';
 	}
+	if (isControlCommandText(text)) {
+		return '';
+	}
 	// Team envelope payload is not user-facing history preview content.
 	if (text.includes('<teammate-message')) {
 		return '';
@@ -160,16 +236,18 @@ function extractPreviewFromRecord(record: JsonlRecord): string {
 function analyzeSessionTail(
 	jsonlPath: string,
 	expectedSessionId: string,
-): { lastActivityAtMs: number; userPreview: string; assistantPreview: string } {
+): { lastActivityAtMs: number; userPreviews: string[]; assistantPreviews: string[] } {
 	const tail = readFileTail(jsonlPath, 96 * 1024);
 	if (!tail) {
-		return { lastActivityAtMs: 0, userPreview: '', assistantPreview: '' };
+		return { lastActivityAtMs: 0, userPreviews: [], assistantPreviews: [] };
 	}
 
 	const lines = tail.split('\n');
 	let lastActivityAtMs = 0;
-	let latestUserPreview = '';
-	let latestAssistantPreview = '';
+	const userPreviews: string[] = [];
+	const assistantPreviews: string[] = [];
+	const seenUser = new Set<string>();
+	const seenAssistant = new Set<string>();
 
 	for (let i = lines.length - 1; i >= 0; i--) {
 		const line = lines[i].trim();
@@ -197,22 +275,30 @@ function analyzeSessionTail(
 			}
 		}
 
-		if (!latestUserPreview && recordType === 'user' && record.isMeta !== true) {
-			latestUserPreview = extractPreviewFromRecord(record);
+		if (recordType === 'user' && record.isMeta !== true) {
+			const preview = extractPreviewFromRecord(record);
+			if (preview && !seenUser.has(preview)) {
+				seenUser.add(preview);
+				userPreviews.push(preview);
+			}
 		}
-		if (!latestAssistantPreview && recordType === 'assistant') {
-			latestAssistantPreview = extractPreviewFromRecord(record);
+		if (recordType === 'assistant') {
+			const preview = extractPreviewFromRecord(record);
+			if (preview && !seenAssistant.has(preview)) {
+				seenAssistant.add(preview);
+				assistantPreviews.push(preview);
+			}
 		}
 
-		if (lastActivityAtMs > 0 && latestUserPreview) {
+		if (lastActivityAtMs > 0 && assistantPreviews.length >= 4 && userPreviews.length >= 3) {
 			break;
 		}
 	}
 
 	return {
 		lastActivityAtMs,
-		userPreview: latestUserPreview,
-		assistantPreview: latestAssistantPreview,
+		userPreviews,
+		assistantPreviews,
 	};
 }
 
@@ -371,8 +457,10 @@ export function collectHistorySessions(
 		if (!Number.isFinite(createdAtMs)) continue;
 
 		const tail = analyzeSessionTail(jsonlPath, sessionId);
-		const firstUserPreview = tail.userPreview ? '' : findFirstUserPreview(jsonlPath, sessionId);
-		const preview = tail.userPreview || firstUserPreview || tail.assistantPreview;
+		const firstUserPreview = findFirstUserPreview(jsonlPath, sessionId);
+		const fallbackTitle = tail.userPreviews[0] || tail.assistantPreviews[0] || '';
+		const title = firstUserPreview || fallbackTitle;
+		const summary = pickSummary(tail.assistantPreviews);
 		const lastActivityAtMs = tail.lastActivityAtMs > 0
 			? tail.lastActivityAtMs
 			: (Number.isFinite(stat.mtimeMs) ? stat.mtimeMs : createdAtMs);
@@ -384,7 +472,8 @@ export function collectHistorySessions(
 			jsonlPath,
 			createdAtMs,
 			lastActivityAtMs,
-			preview,
+			title,
+			summary,
 		});
 	}
 

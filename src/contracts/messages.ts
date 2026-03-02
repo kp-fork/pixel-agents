@@ -46,7 +46,8 @@ export interface HistorySessionSummary {
 	jsonlPath: string;
 	createdAt: string;
 	lastActivityAt: string;
-	preview: string;
+	title: string;
+	summary: string;
 }
 
 export type WebviewToExtensionMessage =

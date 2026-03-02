@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { OfficeState } from '../office/engine/officeState.js'
-import type { OfficeLayout, ToolActivity } from '../office/types.js'
+import type { AgentId, OfficeLayout, ToolActivity } from '../office/types.js'
 import { extractToolName } from '../office/toolUtils.js'
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js'
 import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js'
@@ -12,17 +12,20 @@ import { playDoneSound, setSoundEnabled } from '../notificationSound.js'
 import { setAlwaysStatusBubblesEnabled, setEventBubblesEnabled } from '../speechBubbles.js'
 
 export interface SubagentCharacter {
-  id: number
-  parentAgentId: number
+  id: AgentId
+  parentAgentId: AgentId
   parentToolId: string
   label: string
 }
 
 export interface HistorySessionCharacter {
-  id: number
+  id: string
   sessionId: string
   jsonlPath: string
   createdAt: string
+  lastActivityAt: string
+  title: string
+  summary: string
 }
 
 export interface FurnitureAsset {
@@ -44,19 +47,20 @@ export interface FurnitureAsset {
 }
 
 export interface ExtensionMessageState {
-  agents: number[]
-  selectedAgent: number | null
+  agents: AgentId[]
+  selectedAgent: AgentId | null
   historySessions: HistorySessionCharacter[]
-  agentTools: Record<number, ToolActivity[]>
-  agentStatuses: Record<number, string>
-  subagentTools: Record<number, Record<string, ToolActivity[]>>
+  historySessionsEnabled: boolean
+  agentTools: Record<string, ToolActivity[]>
+  agentStatuses: Record<string, string>
+  subagentTools: Record<string, Record<string, ToolActivity[]>>
   subagentCharacters: SubagentCharacter[]
   layoutReady: boolean
   loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> }
 }
 
 function saveAgentSeats(os: OfficeState): void {
-  const seats: Record<number, { palette: number; hueShift: number; seatId: string | null }> = {}
+  const seats: Record<string, { palette: number; hueShift: number; seatId: string | null }> = {}
   for (const ch of os.characters.values()) {
     if (ch.isSubagent || ch.isHistorical) continue
     seats[ch.id] = { palette: ch.palette, hueShift: ch.hueShift, seatId: ch.seatId }
@@ -69,12 +73,13 @@ export function useExtensionMessages(
   onLayoutLoaded?: (layout: OfficeLayout) => void,
   isEditDirty?: () => boolean,
 ): ExtensionMessageState {
-  const [agents, setAgents] = useState<number[]>([])
-  const [selectedAgent, setSelectedAgent] = useState<number | null>(null)
+  const [agents, setAgents] = useState<AgentId[]>([])
+  const [selectedAgent, setSelectedAgent] = useState<AgentId | null>(null)
   const [historySessions, setHistorySessions] = useState<HistorySessionCharacter[]>([])
-  const [agentTools, setAgentTools] = useState<Record<number, ToolActivity[]>>({})
-  const [agentStatuses, setAgentStatuses] = useState<Record<number, string>>({})
-  const [subagentTools, setSubagentTools] = useState<Record<number, Record<string, ToolActivity[]>>>({})
+  const [historySessionsEnabled, setHistorySessionsEnabled] = useState(true)
+  const [agentTools, setAgentTools] = useState<Record<string, ToolActivity[]>>({})
+  const [agentStatuses, setAgentStatuses] = useState<Record<string, string>>({})
+  const [subagentTools, setSubagentTools] = useState<Record<string, Record<string, ToolActivity[]>>>({})
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([])
   const [layoutReady, setLayoutReady] = useState(false)
   const [loadedAssets, setLoadedAssets] = useState<{ catalog: FurnitureAsset[]; sprites: Record<string, string[][]> } | undefined>()
@@ -85,7 +90,7 @@ export function useExtensionMessages(
 
   useEffect(() => {
     // Buffer agents from existingAgents until layout is loaded
-    let pendingAgents: Array<{ id: number; palette?: number; hueShift?: number; seatId?: string }> = []
+    let pendingAgents: Array<{ id: AgentId; palette?: number; hueShift?: number; seatId?: string }> = []
     let pendingHistorySessions: HistorySessionCharacter[] = []
 
     const syncHistoryCharacters = (
@@ -143,13 +148,13 @@ export function useExtensionMessages(
           saveAgentSeats(os)
         }
       } else if (msg.type === 'agentCreated') {
-        const id = msg.id as number
+        const id = msg.id as AgentId
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]))
         setSelectedAgent(id)
         os.addAgent(id)
         saveAgentSeats(os)
       } else if (msg.type === 'agentClosed') {
-        const id = msg.id as number
+        const id = msg.id as AgentId
         setAgents((prev) => prev.filter((a) => a !== id))
         setSelectedAgent((prev) => (prev === id ? null : prev))
         setAgentTools((prev) => {
@@ -175,8 +180,8 @@ export function useExtensionMessages(
         setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id))
         os.removeAgent(id)
       } else if (msg.type === 'existingAgents') {
-        const incoming = msg.agents as number[]
-        const meta = (msg.agentMeta || {}) as Record<number, { palette?: number; hueShift?: number; seatId?: string }>
+        const incoming = msg.agents as AgentId[]
+        const meta = (msg.agentMeta || {}) as Record<string, { palette?: number; hueShift?: number; seatId?: string }>
         // Buffer agents — they'll be added in layoutLoaded after seats are built
         for (const id of incoming) {
           const m = meta[id]
@@ -190,11 +195,19 @@ export function useExtensionMessages(
               merged.push(id)
             }
           }
-          return merged.sort((a, b) => a - b)
+          return merged.sort((a, b) => a.localeCompare(b))
         })
       } else if (msg.type === 'historySessionsLoaded') {
         const incoming = Array.isArray(msg.sessions)
-          ? (msg.sessions as HistorySessionCharacter[])
+          ? (msg.sessions as Array<HistorySessionCharacter & { preview?: string }>).map((s) => {
+              const baseTitle = (s.title || s.preview || s.sessionId || '').trim()
+              const baseSummary = (s.summary || '').trim()
+              return {
+                ...s,
+                title: baseTitle,
+                summary: baseSummary,
+              }
+            })
           : []
         if (!layoutReadyRef.current) {
           pendingHistorySessions = incoming
@@ -204,7 +217,7 @@ export function useExtensionMessages(
           setHistorySessions(incoming)
         }
       } else if (msg.type === 'agentToolStart') {
-        const id = msg.id as number
+        const id = msg.id as AgentId
         const toolId = msg.toolId as string
         const status = msg.status as string
         setAgentTools((prev) => {
@@ -226,7 +239,7 @@ export function useExtensionMessages(
           })
         }
       } else if (msg.type === 'agentToolDone') {
-        const id = msg.id as number
+        const id = msg.id as AgentId
         const toolId = msg.toolId as string
         setAgentTools((prev) => {
           const list = prev[id]
@@ -237,7 +250,7 @@ export function useExtensionMessages(
           }
         })
       } else if (msg.type === 'agentToolsClear') {
-        const id = msg.id as number
+        const id = msg.id as AgentId
         setAgentTools((prev) => {
           if (!(id in prev)) return prev
           const next = { ...prev }
@@ -256,10 +269,10 @@ export function useExtensionMessages(
         os.setAgentTool(id, null)
         os.clearPermissionBubble(id)
       } else if (msg.type === 'agentSelected') {
-        const id = msg.id as number
+        const id = msg.id as AgentId
         setSelectedAgent(id)
       } else if (msg.type === 'agentStatus') {
-        const id = msg.id as number
+        const id = msg.id as AgentId
         const status = msg.status as string
         setAgentStatuses((prev) => {
           if (status === 'active') {
@@ -276,7 +289,7 @@ export function useExtensionMessages(
           playDoneSound()
         }
       } else if (msg.type === 'agentToolPermission') {
-        const id = msg.id as number
+        const id = msg.id as AgentId
         setAgentTools((prev) => {
           const list = prev[id]
           if (!list) return prev
@@ -287,7 +300,7 @@ export function useExtensionMessages(
         })
         os.showPermissionBubble(id)
       } else if (msg.type === 'subagentToolPermission') {
-        const id = msg.id as number
+        const id = msg.id as AgentId
         const parentToolId = msg.parentToolId as string
         // Show permission bubble on the sub-agent character
         const subId = os.getSubagentId(id, parentToolId)
@@ -295,7 +308,7 @@ export function useExtensionMessages(
           os.showPermissionBubble(subId)
         }
       } else if (msg.type === 'agentToolPermissionClear') {
-        const id = msg.id as number
+        const id = msg.id as AgentId
         setAgentTools((prev) => {
           const list = prev[id]
           if (!list) return prev
@@ -314,7 +327,7 @@ export function useExtensionMessages(
           }
         }
       } else if (msg.type === 'subagentToolStart') {
-        const id = msg.id as number
+        const id = msg.id as AgentId
         const parentToolId = msg.parentToolId as string
         const toolId = msg.toolId as string
         const status = msg.status as string
@@ -332,7 +345,7 @@ export function useExtensionMessages(
           os.setAgentActive(subId, true)
         }
       } else if (msg.type === 'subagentToolDone') {
-        const id = msg.id as number
+        const id = msg.id as AgentId
         const parentToolId = msg.parentToolId as string
         const toolId = msg.toolId as string
         setSubagentTools((prev) => {
@@ -346,7 +359,7 @@ export function useExtensionMessages(
           }
         })
       } else if (msg.type === 'subagentClear') {
-        const id = msg.id as number
+        const id = msg.id as AgentId
         const parentToolId = msg.parentToolId as string
         setSubagentTools((prev) => {
           const agentSubs = prev[id]
@@ -384,9 +397,13 @@ export function useExtensionMessages(
         const eventBubblesOn = typeof msg.eventBubblesEnabled === 'boolean'
           ? msg.eventBubblesEnabled
           : true
+        const historyEnabled = typeof msg.historySessionsEnabled === 'boolean'
+          ? msg.historySessionsEnabled
+          : true
         setSoundEnabled(soundOn)
         setAlwaysStatusBubblesEnabled(alwaysStatusBubblesOn)
         setEventBubblesEnabled(eventBubblesOn)
+        setHistorySessionsEnabled(historyEnabled)
       } else if (msg.type === 'furnitureAssetsLoaded') {
         try {
           const catalog = msg.catalog as FurnitureAsset[]
@@ -405,5 +422,16 @@ export function useExtensionMessages(
     return () => window.removeEventListener('message', handler)
   }, [getOfficeState])
 
-  return { agents, selectedAgent, historySessions, agentTools, agentStatuses, subagentTools, subagentCharacters, layoutReady, loadedAssets }
+  return {
+    agents,
+    selectedAgent,
+    historySessions,
+    historySessionsEnabled,
+    agentTools,
+    agentStatuses,
+    subagentTools,
+    subagentCharacters,
+    layoutReady,
+    loadedAssets,
+  }
 }
