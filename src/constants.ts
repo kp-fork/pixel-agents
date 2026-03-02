@@ -43,6 +43,7 @@ export const HISTORY_SESSIONS_MAX_VISIBLE_DEFAULT = 8;
 // ── VS Code Identifiers ─────────────────────────────────────
 export const VIEW_ID = 'pixel-agents.panelView';
 export const COMMAND_SHOW_PANEL = 'pixel-agents.showPanel';
+export const COMMAND_OPEN_IN_EDITOR = 'pixel-agents.openInEditor';
 export const COMMAND_EXPORT_DEFAULT_LAYOUT = 'pixel-agents.exportDefaultLayout';
 export const COMMAND_SHOW_RUNTIME_INFO = 'pixel-agents.showRuntimeInfo';
 export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';

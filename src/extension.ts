@@ -1,6 +1,12 @@
 import * as vscode from 'vscode';
 import { PixelAgentsViewProvider } from './PixelAgentsViewProvider.js';
-import { VIEW_ID, COMMAND_SHOW_PANEL, COMMAND_EXPORT_DEFAULT_LAYOUT, COMMAND_SHOW_RUNTIME_INFO } from './constants.js';
+import {
+	VIEW_ID,
+	COMMAND_SHOW_PANEL,
+	COMMAND_OPEN_IN_EDITOR,
+	COMMAND_EXPORT_DEFAULT_LAYOUT,
+	COMMAND_SHOW_RUNTIME_INFO,
+} from './constants.js';
 
 let providerInstance: PixelAgentsViewProvider | undefined;
 
@@ -21,6 +27,12 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(COMMAND_SHOW_PANEL, () => {
 			vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(COMMAND_OPEN_IN_EDITOR, () => {
+			provider.showInEditor();
 		})
 	);
 

@@ -25,6 +25,10 @@
         "title": "Pixel Agents: Show Panel"
       },
       {
+        "command": "pixel-agents.openInEditor",
+        "title": "Pixel Agents: Open in Editor"
+      },
+      {
         "command": "pixel-agents.exportDefaultLayout",
         "title": "Pixel Agents: Export Layout as Default"
       },
@@ -48,6 +52,15 @@
           "type": "webview",
           "id": "pixel-agents.panelView",
           "name": "Pixel Agents"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "pixel-agents.openInEditor",
+          "when": "view == pixel-agents.panelView",
+          "group": "navigation"
         }
       ]
     },
