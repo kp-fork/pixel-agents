@@ -4,14 +4,17 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "start": "tsx src/main.ts",
-    "start:electrobun": "electrobun run src/main.ts",
+    "start": "electrobun dev",
+    "start:console": "tsx src/main.ts",
+    "start:electrobun": "electrobun dev",
+    "build": "electrobun build",
+    "package": "electrobun package",
     "check-types": "tsc --project tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "^22.18.12",
+    "electrobun": "^1.14.4",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }
-

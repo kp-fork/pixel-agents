@@ -102,7 +102,8 @@
   "scripts": {
     "vscode:prepublish": "npm run package",
     "dev:vscode": "npm run watch",
-    "dev:desktop": "npm --prefix apps/desktop-electrobun run start",
+    "setup:desktop": "npm --prefix apps/desktop-electrobun install --no-fund --no-audit --cache /tmp/pixel-agents-npm-cache",
+    "dev:desktop": "npm run setup:desktop && npm --prefix apps/desktop-electrobun run start",
     "dev:harness": "npm --prefix apps/view-harness run start",
     "build:webview": "cd webview-ui && npm run build",
     "compile": "npm run check-types && npm run lint && node esbuild.js && npm run build:webview",
@@ -118,7 +119,7 @@
     "check-types": "npm-run-all check-types:*",
     "check-types:root": "tsc --noEmit --project tsconfig.json",
     "check-types:packages": "tsc --noEmit --project tsconfig.packages.json",
-    "check-types:desktop-electrobun": "tsc --noEmit --project apps/desktop-electrobun/tsconfig.json",
+    "check-types:desktop-electrobun": "npm run setup:desktop && tsc --noEmit --project apps/desktop-electrobun/tsconfig.json",
     "check-types:view-harness": "tsc --noEmit --project apps/view-harness/tsconfig.json",
     "test:routing": "tsx scripts/test-jsonl-routing.ts",
     "test:team-tracking": "tsx scripts/test-team-tracking.ts",

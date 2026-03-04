@@ -89,12 +89,14 @@ You can run the VS Code extension path and the standalone host prototypes indepe
 # VS Code extension dev loop
 npm run dev:vscode
 
-# Desktop prototype host (Electrobun scaffold)
+# Desktop prototype host (Electrobun window)
 npm run dev:desktop
 
 # View harness host (console renderer)
 npm run dev:harness
 ```
+
+`npm run dev:desktop` installs `apps/desktop-electrobun` dependencies, then starts Electrobun dev runtime and opens a desktop window.
 
 ### Runtime verification helpers
 
