@@ -9,8 +9,17 @@ Experimental desktop host scaffold for Pixel Agents.
 
 ## Run
 ```bash
+# from repository root (builds webview bundle + runs desktop host)
+npm run dev:desktop
+```
+
+Direct desktop-host run (requires `dist/webview` prepared first):
+```bash
 # one-time dependency install
 npm --prefix apps/desktop-electrobun install
+
+# build the shared webview bundle
+npm run build:webview
 
 # starts Electrobun dev runtime and opens a window
 npm --prefix apps/desktop-electrobun run start

@@ -11,6 +11,9 @@ const config: ElectrobunConfig = {
 		bun: {
 			entrypoint: 'src/bun/index.ts',
 		},
+		copy: {
+			'../../dist/webview': 'views/pixel',
+		},
 	},
 	runtime: {
 		exitOnLastWindowClosed: true,

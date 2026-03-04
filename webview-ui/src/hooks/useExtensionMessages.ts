@@ -119,6 +119,40 @@ export function useExtensionMessages(
       }
     }
 
+    const host = globalThis as { acquireVsCodeApi?: unknown }
+    const standaloneMode = typeof host.acquireVsCodeApi !== 'function'
+    if (standaloneMode) {
+      const os = getOfficeState()
+      const demoAgents: AgentId[] = ['desktop-alpha', 'desktop-beta', 'desktop-gamma']
+
+      os.addAgent(demoAgents[0], 1, 0, undefined, true, 'pixel-agents')
+      os.setAgentTool(demoAgents[0], 'Planning')
+      os.setAgentActive(demoAgents[0], true)
+
+      os.addAgent(demoAgents[1], 3, 0, undefined, true, 'pixel-agents')
+      os.setAgentTool(demoAgents[1], null)
+      os.setAgentActive(demoAgents[1], false)
+      os.showWaitingBubble(demoAgents[1])
+
+      os.addAgent(demoAgents[2], 5, 0, undefined, true, 'pixel-agents')
+      os.setAgentTool(demoAgents[2], 'Testing')
+      os.setAgentActive(demoAgents[2], true)
+
+      setAgents(demoAgents)
+      setSelectedAgent(demoAgents[0])
+      setAgentStatuses({ [demoAgents[1]]: 'waiting' })
+      setHistorySessionsEnabled(false)
+      setWorkspaceFolders([{ name: 'pixel-agents', path: 'desktop://workspace' }])
+      onLayoutLoaded?.(os.getLayout())
+      layoutReadyRef.current = true
+      setLayoutReady(true)
+      console.log('[Webview] Standalone mode initialized with demo agents')
+
+      return () => {
+        // No host message wiring in standalone mode.
+      }
+    }
+
     const handler = (e: MessageEvent) => {
       const msg = e.data
       const os = getOfficeState()

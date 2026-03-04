@@ -103,7 +103,7 @@
     "vscode:prepublish": "npm run package",
     "dev:vscode": "npm run watch",
     "setup:desktop": "npm --prefix apps/desktop-electrobun install --no-fund --no-audit --cache /tmp/pixel-agents-npm-cache",
-    "dev:desktop": "npm run setup:desktop && npm --prefix apps/desktop-electrobun run start",
+    "dev:desktop": "npm run build:webview && npm run setup:desktop && npm --prefix apps/desktop-electrobun run start",
     "dev:harness": "npm --prefix apps/view-harness run start",
     "build:webview": "cd webview-ui && npm run build",
     "compile": "npm run check-types && npm run lint && node esbuild.js && npm run build:webview",

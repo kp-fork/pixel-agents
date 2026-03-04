@@ -69,6 +69,8 @@ bridge.onMessage((msg) => {
 ## 2026-03-04 Follow-up
 - `electrobun dev`에서 `latest` core URL 404 이슈를 확인했고, 로컬 의존성 기반(`apps/desktop-electrobun/node_modules/electrobun`)으로 버전 고정 다운로드 경로(`v1.14.4`)를 사용하도록 실행 플로우를 정리했다.
 - `npm run dev:desktop` 검증에서 런처/웹뷰 로드 및 `BrowserWindow` 렌더 로그를 확인했다.
+- Electrobun `copy` 설정으로 `dist/webview`를 `views/pixel`에 포함하고, `BrowserWindow(url='views://pixel/index.html')`로 캐릭터 웹뷰를 직접 로드하도록 변경했다.
+- VS Code host가 없는 경우 `useExtensionMessages` standalone fallback으로 demo agent를 생성해 캐릭터 씬이 바로 보이도록 연결했다.
 
 ## Done Criteria
 - VS Code host 경로 회귀 없음
