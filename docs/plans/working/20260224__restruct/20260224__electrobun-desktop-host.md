@@ -71,6 +71,9 @@ bridge.onMessage((msg) => {
 - `npm run dev:desktop` 검증에서 런처/웹뷰 로드 및 `BrowserWindow` 렌더 로그를 확인했다.
 - Electrobun `copy` 설정으로 `dist/webview`를 `views/pixel`에 포함하고, `BrowserWindow(url='views://pixel/index.html')`로 캐릭터 웹뷰를 직접 로드하도록 변경했다.
 - VS Code host가 없는 경우 `useExtensionMessages` standalone fallback으로 demo agent를 생성해 캐릭터 씬이 바로 보이도록 연결했다.
+- `host-message` 기반 bridge를 추가해 desktop host가 webview 이벤트 발행 주체 역할을 수행하도록 변경했다.
+  - webview -> host: `__electrobunSendToHost` (`openClaude`, `focusAgent`, `closeAgent`, `set*`)
+  - host -> webview: `window.dispatchEvent(new MessageEvent('message', { data }))` (`settingsLoaded`, `existingAgents`, `layoutLoaded`, `historySessionsLoaded`, `agent*`)
 
 ## Done Criteria
 - VS Code host 경로 회귀 없음

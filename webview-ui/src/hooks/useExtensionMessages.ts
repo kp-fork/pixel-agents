@@ -119,34 +119,121 @@ export function useExtensionMessages(
       }
     }
 
-    const host = globalThis as { acquireVsCodeApi?: unknown }
-    const standaloneMode = typeof host.acquireVsCodeApi !== 'function'
+    const host = globalThis as { acquireVsCodeApi?: unknown; __electrobunSendToHost?: unknown }
+    const standaloneMode =
+      typeof host.acquireVsCodeApi !== 'function' &&
+      typeof host.__electrobunSendToHost !== 'function'
     if (standaloneMode) {
       const os = getOfficeState()
-      const demoAgents: AgentId[] = ['desktop-alpha', 'desktop-beta', 'desktop-gamma']
+      const demoAgents = [
+        { id: 'desktop-alpha', palette: 0, hueShift: 0, active: true, tool: 'Plan architecture', folder: 'workspace/core' },
+        { id: 'desktop-beta', palette: 1, hueShift: 0, active: true, tool: 'Coordinate subtasks', folder: 'workspace/core' },
+        { id: 'desktop-gamma', palette: 2, hueShift: 0, active: false, tool: null, folder: 'workspace/ui' },
+        { id: 'desktop-delta', palette: 3, hueShift: 0, active: true, tool: 'Implement renderer', folder: 'workspace/ui' },
+        { id: 'desktop-epsilon', palette: 4, hueShift: 0, active: true, tool: 'Write integration tests', folder: 'workspace/tests' },
+        { id: 'desktop-zeta', palette: 5, hueShift: 0, active: true, tool: 'Run migration', folder: 'workspace/ops' },
+        { id: 'desktop-eta', palette: 0, hueShift: 80, active: true, tool: 'Review changes', folder: 'workspace/review' },
+        { id: 'desktop-theta', palette: 2, hueShift: 140, active: false, tool: null, folder: 'workspace/ops' },
+      ] as const
 
-      os.addAgent(demoAgents[0], 1, 0, undefined, true, 'pixel-agents')
-      os.setAgentTool(demoAgents[0], 'Planning')
-      os.setAgentActive(demoAgents[0], true)
+      const agentStatusSeed: Record<string, string> = {}
+      const agentToolSeed: Record<string, ToolActivity[]> = {}
 
-      os.addAgent(demoAgents[1], 3, 0, undefined, true, 'pixel-agents')
-      os.setAgentTool(demoAgents[1], null)
-      os.setAgentActive(demoAgents[1], false)
-      os.showWaitingBubble(demoAgents[1])
+      for (const demo of demoAgents) {
+        os.addAgent(demo.id, demo.palette, demo.hueShift, undefined, true, demo.folder)
+        os.setAgentActive(demo.id, demo.active)
+        os.setAgentTool(demo.id, demo.tool)
+        if (demo.tool) {
+          agentToolSeed[demo.id] = [{ toolId: `tool:${demo.id}:1`, status: demo.tool, done: false }]
+        }
+      }
 
-      os.addAgent(demoAgents[2], 5, 0, undefined, true, 'pixel-agents')
-      os.setAgentTool(demoAgents[2], 'Testing')
-      os.setAgentActive(demoAgents[2], true)
+      // Waiting examples
+      os.showWaitingBubble('desktop-gamma')
+      os.showWaitingBubble('desktop-theta')
+      agentStatusSeed['desktop-gamma'] = 'waiting'
+      agentStatusSeed['desktop-theta'] = 'waiting'
 
-      setAgents(demoAgents)
-      setSelectedAgent(demoAgents[0])
-      setAgentStatuses({ [demoAgents[1]]: 'waiting' })
-      setHistorySessionsEnabled(false)
-      setWorkspaceFolders([{ name: 'pixel-agents', path: 'desktop://workspace' }])
+      // Permission-waiting example
+      os.showPermissionBubble('desktop-zeta')
+      agentToolSeed['desktop-zeta'] = [
+        { toolId: 'tool:desktop-zeta:1', status: 'Run migration', done: false, permissionWait: true },
+      ]
+
+      // Sub-agent examples under desktop-beta
+      const demoSubagentTools: Record<string, Record<string, ToolActivity[]>> = {
+        'desktop-beta': {
+          'task-refactor': [{ toolId: 'subtool:task-refactor:1', status: 'Refactor parser', done: false }],
+          'task-tests': [{ toolId: 'subtool:task-tests:1', status: 'Regression tests', done: true }],
+        },
+      }
+      const demoSubagentCharacters: SubagentCharacter[] = []
+      const subagentSpecs = [
+        { parentAgentId: 'desktop-beta', parentToolId: 'task-refactor', label: 'Refactor parser' },
+        { parentAgentId: 'desktop-beta', parentToolId: 'task-tests', label: 'Regression tests' },
+      ] as const
+      for (const spec of subagentSpecs) {
+        const subId = os.addSubagent(spec.parentAgentId, spec.parentToolId)
+        os.setAgentActive(subId, true)
+        os.setAgentTool(subId, 'Subtask')
+        demoSubagentCharacters.push({
+          id: subId,
+          parentAgentId: spec.parentAgentId,
+          parentToolId: spec.parentToolId,
+          label: spec.label,
+        })
+      }
+
+      const now = Date.now()
+      const historySeed: HistorySessionCharacter[] = [
+        {
+          id: 'history:desktop:1',
+          sessionId: '67ee32c7-a1cd-47c2-a8fa-9473fc1f44af',
+          jsonlPath: '/demo/sessions/alpha.jsonl',
+          createdAt: new Date(now - 1000 * 60 * 60 * 36).toISOString(),
+          lastActivityAt: new Date(now - 1000 * 60 * 60 * 3).toISOString(),
+          title: 'Stabilize desktop bridge',
+          summary: 'Refined standalone boot path and runtime flow.',
+        },
+        {
+          id: 'history:desktop:2',
+          sessionId: '9ef6f357-c387-4f67-a59e-6fe2e0a7bf0a',
+          jsonlPath: '/demo/sessions/beta.jsonl',
+          createdAt: new Date(now - 1000 * 60 * 60 * 52).toISOString(),
+          lastActivityAt: new Date(now - 1000 * 60 * 60 * 26).toISOString(),
+          title: 'Tune layout pack loading',
+          summary: 'Validated pack structure and import/export paths.',
+        },
+        {
+          id: 'history:desktop:3',
+          sessionId: '0f1f0b8f-df43-4a51-911a-6f3f25a69f79',
+          jsonlPath: '/demo/sessions/gamma.jsonl',
+          createdAt: new Date(now - 1000 * 60 * 60 * 80).toISOString(),
+          lastActivityAt: new Date(now - 1000 * 60 * 60 * 47).toISOString(),
+          title: 'Investigate session tracking drift',
+          summary: 'Compared live/session ids and dedupe behavior.',
+        },
+      ]
+      syncHistoryCharacters(os, historySessionsRef.current, historySeed)
+      historySessionsRef.current = historySeed
+
+      setAgents(demoAgents.map((agent) => agent.id))
+      setSelectedAgent('desktop-alpha')
+      setAgentStatuses(agentStatusSeed)
+      setAgentTools(agentToolSeed)
+      setSubagentTools(demoSubagentTools)
+      setSubagentCharacters(demoSubagentCharacters)
+      setHistorySessions(historySeed)
+      setHistorySessionsEnabled(true)
+      setWorkspaceFolders([
+        { name: 'workspace/core', path: 'desktop://workspace/core' },
+        { name: 'workspace/ui', path: 'desktop://workspace/ui' },
+        { name: 'workspace/ops', path: 'desktop://workspace/ops' },
+      ])
       onLayoutLoaded?.(os.getLayout())
       layoutReadyRef.current = true
       setLayoutReady(true)
-      console.log('[Webview] Standalone mode initialized with demo agents')
+      console.log('[Webview] Standalone mode initialized with extended demo characters')
 
       return () => {
         // No host message wiring in standalone mode.
