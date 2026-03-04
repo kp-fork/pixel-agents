@@ -1,0 +1,5 @@
+{
+  "pixel-agents.historySessions.enabled": true,
+  "pixel-agents.historySessions.lookbackDays": 14,
+  "pixel-agents.historySessions.maxVisible": 8
+}
