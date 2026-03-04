@@ -108,6 +108,16 @@ npm run test:flow
 npm run test:flow:batch
 ```
 
+For an operations-grade pre-release check:
+
+```bash
+# Full local verification pipeline
+npm run verify:ops
+
+# Full verification + VSIX package output
+npm run verify:ops:vsix
+```
+
 History session preview behavior can be configured in VS Code settings:
 - `pixel-agents.claudeResumeCommand`
 - `pixel-agents.historySessions.enabled`
