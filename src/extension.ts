@@ -44,9 +44,24 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(COMMAND_SHOW_RUNTIME_INFO, () => {
-			output.appendLine(`[runtime] ${runtimeInfo}`);
+			const snapshot = provider.getRuntimeSnapshot();
+			const activeAgents = snapshot.agents.filter((agent) => agent.status === 'active').length;
+			const waitingAgents = snapshot.agents.length - activeAgents;
+			output.appendLine('[runtime][begin]');
+			output.appendLine(`[runtime][extension] ${runtimeInfo}`);
+			output.appendLine(`[runtime][workspace] folders=${snapshot.workspaceFolders.length} projectDir=${snapshot.projectDir ?? '<none>'}`);
+			output.appendLine(`[runtime][settings] sound=${snapshot.settings.soundEnabled} alwaysStatusBubbles=${snapshot.settings.alwaysStatusBubblesEnabled} eventBubbles=${snapshot.settings.eventBubblesEnabled} historyEnabled=${snapshot.settings.historySessionsEnabled} lookbackDays=${snapshot.settings.historyLookbackDays} maxVisible=${snapshot.settings.historyMaxVisible}`);
+			output.appendLine(`[runtime][agents] total=${snapshot.agentCount} active=${activeAgents} waiting=${waitingAgents} selected=${snapshot.activeAgentId ?? '<none>'} knownJsonl=${snapshot.knownJsonlFileCount}`);
+			for (const agent of snapshot.agents) {
+				output.appendLine(
+					`[runtime][agent] id=${agent.id} terminal="${agent.terminalName}" status=${agent.status} tools=${agent.activeToolCount} sessionId=${agent.sessionId ?? '<none>'} folder=${agent.folderName ?? '<none>'}`,
+				);
+			}
+			output.appendLine(`[runtime][webview] attached=${snapshot.webviewAttached} layoutWatcher=${snapshot.layoutWatcherActive}`);
+			output.appendLine(`[runtime][snapshot] ${JSON.stringify(snapshot)}`);
+			output.appendLine('[runtime][end]');
 			output.show(true);
-			vscode.window.showInformationMessage(`Pixel Agents runtime: ${runtimeInfo}`);
+			vscode.window.showInformationMessage(`Pixel Agents runtime logged: agents=${snapshot.agentCount}, project=${snapshot.projectDir ?? 'none'}`);
 		})
 	);
 }

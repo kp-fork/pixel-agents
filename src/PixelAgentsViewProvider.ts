@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { AgentId, AgentState } from './types.js';
-import type { WebviewToExtensionMessage } from './contracts/messages.js';
+import type { AgentRuntimeStatus, WebviewToExtensionMessage } from './contracts/messages.js';
 import { postToWebview } from './contracts/postMessage.js';
 import {
 	launchNewTerminal,
@@ -59,6 +59,79 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	layoutWatcher: LayoutWatcher | null = null;
 
 	constructor(private readonly context: vscode.ExtensionContext) {}
+
+	public getRuntimeSnapshot(): {
+		timestamp: string;
+		workspaceFolders: Array<{ name: string; path: string }>;
+		projectDir: string | null;
+		webviewAttached: boolean;
+		layoutWatcherActive: boolean;
+		knownJsonlFileCount: number;
+		activeAgentId: string | null;
+		agentCount: number;
+		agents: Array<{
+			id: string;
+			terminalName: string;
+			sessionId: string | null;
+			status: AgentRuntimeStatus;
+			activeToolCount: number;
+			jsonlFile: string;
+			projectDir: string;
+			folderName: string | null;
+		}>;
+		settings: {
+			soundEnabled: boolean;
+			alwaysStatusBubblesEnabled: boolean;
+			eventBubblesEnabled: boolean;
+			historySessionsEnabled: boolean;
+			historyLookbackDays: number;
+			historyMaxVisible: number;
+		};
+	} {
+		const config = vscode.workspace.getConfiguration('pixel-agents');
+		const workspaceFolders = (vscode.workspace.workspaceFolders || []).map((folder) => ({
+			name: folder.name,
+			path: folder.uri.fsPath,
+		}));
+		const agents = Array.from(this.agents.values()).map((agent) => {
+			const fileSessionId = path.basename(agent.jsonlFile, '.jsonl');
+			const sessionId = /^[0-9a-fA-F-]{36}$/.test(fileSessionId) ? fileSessionId : null;
+			const status: AgentRuntimeStatus = agent.activeToolIds.size > 0 || !agent.isWaiting ? 'active' : 'waiting';
+			return {
+				id: agent.id,
+				terminalName: agent.terminalRef.name,
+				sessionId,
+				status,
+				activeToolCount: agent.activeToolIds.size,
+				jsonlFile: agent.jsonlFile,
+				projectDir: agent.projectDir,
+				folderName: agent.folderName ?? null,
+			};
+		});
+
+		return {
+			timestamp: new Date().toISOString(),
+			workspaceFolders,
+			projectDir: getProjectDirPath(),
+			webviewAttached: !!this.webview,
+			layoutWatcherActive: this.layoutWatcher !== null,
+			knownJsonlFileCount: this.knownJsonlFiles.size,
+			activeAgentId: this.activeAgentId.current,
+			agentCount: agents.length,
+			agents,
+			settings: {
+				soundEnabled: this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true),
+				alwaysStatusBubblesEnabled: this.context.globalState.get<boolean>(
+					GLOBAL_KEY_ALWAYS_STATUS_BUBBLES_ENABLED,
+					this.context.globalState.get<boolean>(GLOBAL_KEY_SPEECH_BUBBLES_ENABLED, true),
+				),
+				eventBubblesEnabled: this.context.globalState.get<boolean>(GLOBAL_KEY_EVENT_BUBBLES_ENABLED, true),
+				historySessionsEnabled: config.get<boolean>('historySessions.enabled', HISTORY_SESSIONS_ENABLED_DEFAULT),
+				historyLookbackDays: config.get<number>('historySessions.lookbackDays', HISTORY_SESSIONS_LOOKBACK_DAYS_DEFAULT),
+				historyMaxVisible: config.get<number>('historySessions.maxVisible', HISTORY_SESSIONS_MAX_VISIBLE_DEFAULT),
+			},
+		};
+	}
 
 	private get extensionUri(): vscode.Uri {
 		return this.context.extensionUri;
