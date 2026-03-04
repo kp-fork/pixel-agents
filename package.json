@@ -129,7 +129,8 @@
     "test:flow": "tsx scripts/verify-agent-flow.ts",
     "test:flow:batch": "tsx scripts/verify-agent-flow-batch.ts --limit 5",
     "test:runtime": "npm-run-all test:routing test:team-tracking test:overlay-state test:bubble-settings test:history-sessions test:flow",
-    "verify:ops": "npm-run-all check-types test:runtime build",
+    "quality:lint-budget": "node scripts/check-lint-warning-budget.js",
+    "verify:ops": "npm-run-all check-types test:runtime quality:lint-budget build",
     "verify:ops:vsix": "npm run verify:ops && npm run package:vsix",
     "lint": "eslint src",
     "import-tileset": "tsx scripts/import-tileset-cli.ts"

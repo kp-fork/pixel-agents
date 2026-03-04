@@ -74,6 +74,7 @@ bridge.onMessage((msg) => {
 - `host-message` 기반 bridge를 추가해 desktop host가 webview 이벤트 발행 주체 역할을 수행하도록 변경했다.
   - webview -> host: `__electrobunSendToHost` (`openClaude`, `focusAgent`, `closeAgent`, `set*`)
   - host -> webview: `window.dispatchEvent(new MessageEvent('message', { data }))` (`settingsLoaded`, `existingAgents`, `layoutLoaded`, `historySessionsLoaded`, `agent*`)
+- desktop host history 옵션 소스를 프로젝트 루트 `settings.json`으로 고정하고(`pixel-agents.historySessions.*`), 실행 로그에서 로드 파일 경로/값을 직접 확인할 수 있게 했다.
 
 ## Done Criteria
 - VS Code host 경로 회귀 없음

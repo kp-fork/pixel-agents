@@ -120,6 +120,14 @@ npm run verify:ops
 npm run verify:ops:vsix
 ```
 
+For lint warning regression detection (quality gate):
+
+```bash
+npm run quality:lint-budget
+```
+
+Release checklist: `docs/release-checklist.md`
+
 History session preview behavior can be configured in VS Code settings:
 - `pixel-agents.claudeResumeCommand`
 - `pixel-agents.historySessions.enabled`
