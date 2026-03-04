@@ -40,6 +40,13 @@
   - 이미 실행 중인 동일 세션 터미널이 있으면 신규 생성 대신 포커스
   - 세션 실행/종료 시 history 목록 재동기화
 
+### PR27 - history 표시 토글 즉시 반영 보강
+- 목표: Settings의 `Show history characters` 토글 변경이 UI에 즉시 반영되도록 보강
+- 상태: done
+- 핵심 작업:
+  - `settingsLoaded` 수신 시 `historySessionsEnabled=false`이면 history 캐릭터 즉시 제거
+  - `historySessions` 상태와 `OfficeState` history 캐릭터 맵 동시 초기화
+
 ## Execution Log
 
 ### PR23
@@ -109,3 +116,18 @@
   - `npm run build` 통과
 - Summary:
   - history 캐릭터 클릭이 실제 세션 재개 동작(터미널 실행)으로 연결됨.
+
+### PR27
+- Review:
+  - 설정 토글이 적용돼도 일부 런타임에서 history 캐릭터가 남아 보이는 케이스가 있었다.
+- Improvement:
+  - `webview-ui/src/hooks/useExtensionMessages.ts`
+    - `settingsLoaded` 처리에서 `historySessionsEnabled=false` 수신 시
+      - `syncHistoryCharacters(..., [])`
+      - `historySessionsRef` 초기화
+      - `setHistorySessions([])`
+- Validation:
+  - `npm run check-types` 통과
+  - `npm run reinstall:vsix` 통과
+- Summary:
+  - history 표시 토글 OFF 시 history 캐릭터가 즉시 제거되도록 동작 일관성을 확보함.

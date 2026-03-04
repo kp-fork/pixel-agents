@@ -416,6 +416,11 @@ export function useExtensionMessages(
         setAlwaysStatusBubblesEnabled(alwaysStatusBubblesOn)
         setEventBubblesEnabled(eventBubblesOn)
         setHistorySessionsEnabled(historyEnabled)
+        if (!historyEnabled) {
+          syncHistoryCharacters(os, historySessionsRef.current, [])
+          historySessionsRef.current = []
+          setHistorySessions([])
+        }
       } else if (msg.type === 'furnitureAssetsLoaded') {
         try {
           const catalog = msg.catalog as FurnitureAsset[]
