@@ -96,7 +96,7 @@ npm run dev:desktop
 npm run dev:harness
 ```
 
-`npm run dev:desktop` builds `dist/webview`, installs `apps/desktop-electrobun` dependencies, then starts Electrobun dev runtime and opens a desktop window with the character webview.
+`npm run dev:desktop` builds `dist/webview`, installs `apps/desktop` dependencies, then starts Electrobun dev runtime and opens a desktop window with the character webview.
 
 ### Runtime verification helpers
 
