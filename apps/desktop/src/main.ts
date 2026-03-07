@@ -10,7 +10,7 @@ function isDesktopMessage(message: unknown): message is DesktopInboundMessage {
 
 function renderSnapshot(label: string, store: CoreStore): void {
 	const vm = mapToViewModel(store.snapshot());
-	console.log(`[desktop-electrobun][render:${label}] agents=${vm.toolbar.trackedAgentCount} waiting=${vm.toolbar.waitingAgentCount}`);
+	console.log(`[desktop][render:${label}] agents=${vm.toolbar.trackedAgentCount} waiting=${vm.toolbar.waitingAgentCount}`);
 }
 
 function run(): void {

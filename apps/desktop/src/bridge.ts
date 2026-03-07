@@ -6,7 +6,7 @@ export function createElectrobunBridge(): DesktopBridge {
 	return {
 		send(message: unknown): void {
 			// Prototype path: log outbound payloads for visibility.
-			console.log('[desktop-electrobun][send]', JSON.stringify(message));
+			console.log('[desktop][send]', JSON.stringify(message));
 		},
 		onMessage(handler: (message: unknown) => void): () => void {
 			listeners.add(handler);

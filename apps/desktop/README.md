@@ -1,4 +1,4 @@
-# Desktop Electrobun Host (Prototype)
+# Desktop Host (Electrobun Prototype)
 
 Experimental desktop host scaffold for Pixel Agents.
 
@@ -16,16 +16,16 @@ npm run dev:desktop
 Direct desktop-host run (requires `dist/webview` prepared first):
 ```bash
 # one-time dependency install
-npm --prefix apps/desktop-electrobun install
+npm --prefix apps/desktop install
 
 # build the shared webview bundle
 npm run build:webview
 
 # starts Electrobun dev runtime and opens a window
-npm --prefix apps/desktop-electrobun run start
+npm --prefix apps/desktop run app:desktop:start
 ```
 
 Console-only prototype flow:
 ```bash
-npm --prefix apps/desktop-electrobun run start:console
+npm --prefix apps/desktop run app:desktop:start:console
 ```

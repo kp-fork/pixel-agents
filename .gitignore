@@ -7,4 +7,5 @@ node_modules
 /logs
 /sprites-export
 .env
-apps/desktop-electrobun/build/
+apps/desktop/build/
+apps/desktop/bin/

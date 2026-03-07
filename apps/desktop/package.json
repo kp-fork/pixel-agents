@@ -1,0 +1,31 @@
+{
+  "name": "@pixel-agents/desktop",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "app:desktop:build:pty": "npm run build:pty",
+    "app:desktop:start": "npm run start",
+    "app:desktop:start:console": "npm run start:console",
+    "app:desktop:start:electrobun": "npm run start:electrobun",
+    "app:desktop:build": "npm run build",
+    "app:desktop:package": "npm run package",
+    "app:desktop:check-types": "npm run check-types",
+    "build:pty": "node scripts/build-pty.mjs",
+    "start": "electrobun dev",
+    "start:console": "tsx src/main.ts",
+    "start:electrobun": "electrobun dev",
+    "build": "electrobun build",
+    "package": "electrobun package",
+    "check-types": "tsc --project tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.12",
+    "electrobun": "^1.14.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@lydell/node-pty": "^1.2.0-beta.3"
+  }
+}
