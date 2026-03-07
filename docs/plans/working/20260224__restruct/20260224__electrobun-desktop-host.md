@@ -32,11 +32,11 @@ export interface HostBridge {
 
 ### PR13 - Electrobun 최소 호스트 프로토타입
 - 목표: layout 렌더링 + 메시지 왕복 + mock agent 이벤트까지 동작하는 desktop 프로토타입 구축
-- 상태: done (`apps/desktop-electrobun` 프로토타입 스캐폴드 + 실윈도우 부팅 경로 반영)
+- 상태: done (`apps/desktop` 프로토타입 스캐폴드 + 실윈도우 부팅 경로 반영)
 - 코드 범위(예시):
-  - `apps/desktop-electrobun/src/main.ts` (console prototype)
-  - `apps/desktop-electrobun/src/bun/index.ts` (Electrobun window entry)
-  - `apps/desktop-electrobun/electrobun.config.ts`
+  - `apps/desktop/src/main.ts` (console prototype)
+  - `apps/desktop/src/bun/index.ts` (Electrobun window entry)
+  - `apps/desktop/electrobun.config.ts`
 - 코드 스케치:
 
 ```ts
@@ -61,13 +61,13 @@ bridge.onMessage((msg) => {
 {
   "scripts": {
     "dev:vscode": "npm run watch",
-    "dev:desktop": "npm run setup:desktop && npm --prefix apps/desktop-electrobun run start"
+    "dev:desktop": "npm run setup:desktop && npm --prefix apps/desktop run start"
   }
 }
 ```
 
 ## 2026-03-04 Follow-up
-- `electrobun dev`에서 `latest` core URL 404 이슈를 확인했고, 로컬 의존성 기반(`apps/desktop-electrobun/node_modules/electrobun`)으로 버전 고정 다운로드 경로(`v1.14.4`)를 사용하도록 실행 플로우를 정리했다.
+- `electrobun dev`에서 `latest` core URL 404 이슈를 확인했고, 로컬 의존성 기반(`apps/desktop/node_modules/electrobun`)으로 버전 고정 다운로드 경로(`v1.14.4`)를 사용하도록 실행 플로우를 정리했다.
 - `npm run dev:desktop` 검증에서 런처/웹뷰 로드 및 `BrowserWindow` 렌더 로그를 확인했다.
 - Electrobun `copy` 설정으로 `dist/webview`를 `views/pixel`에 포함하고, `BrowserWindow(url='views://pixel/index.html')`로 캐릭터 웹뷰를 직접 로드하도록 변경했다.
 - VS Code host가 없는 경우 `useExtensionMessages` standalone fallback으로 demo agent를 생성해 캐릭터 씬이 바로 보이도록 연결했다.

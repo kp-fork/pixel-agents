@@ -11,15 +11,15 @@
 - PR3: webview import 경계 ESLint 규칙 추가
 - PR4~PR7: session registry/backfill queue/matcher/telemetry(debug snapshot) 모듈 추가
 - PR8~PR11: `packages/core`, `packages/view-model`, `webview-ui/src/adapter`, `apps/view-harness` 추가
-- PR12~PR14: HostBridge 표준화, `apps/desktop-electrobun` 프로토타입, 듀얼 실행 스크립트/README 반영
+- PR12~PR14: HostBridge 표준화, `apps/desktop` 프로토타입, 듀얼 실행 스크립트/README 반영
 
 ## Validation
 - `npm run check-types` (root): pass
 - `npm --prefix webview-ui run build`: pass
 - `npx tsc --project apps/view-harness/tsconfig.json --noEmit`: pass
-- `npx tsc --project apps/desktop-electrobun/tsconfig.json --noEmit`: pass
+- `npx tsc --project apps/desktop/tsconfig.json --noEmit`: pass
 - `npx tsx apps/view-harness/src/main.ts`: pass
-- `npx tsx apps/desktop-electrobun/src/main.ts`: pass
+- `npx tsx apps/desktop/src/main.ts`: pass
 - `npm run build`: pass (lint warnings only, no errors)
 
 ## Notes

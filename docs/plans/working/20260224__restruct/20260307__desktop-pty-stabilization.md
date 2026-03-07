@@ -188,7 +188,7 @@
 ## Recovery PR Chain (Re-opened)
 
 ### PR35 - Desktop PTY End-to-End Trace Lock
-- 상태: planned
+- 상태: in_progress
 - Owner: desktop-runtime
 - ETA: 2026-03-08
 - 목표:
@@ -201,7 +201,7 @@
   - 출력 누락 시 어떤 단계에서 유실됐는지 단일 로그로 식별된다.
 
 ### PR36 - Desktop Terminal Session Contract Simplification
-- 상태: planned
+- 상태: done
 - Owner: desktop-runtime
 - ETA: 2026-03-09
 - 목표:
@@ -229,9 +229,84 @@
   - "명령 입력 후 출력 미표시" 재현 불가를 로그+시연으로 확인
   - PR31~PR34 상태를 `done`으로 되돌릴지 여부를 근거와 함께 결정
 
+### PR35
+- Review:
+  - 현재 로그는 이벤트 단위 분절되어 있어 `+ Agent -> openClaude -> terminalData` 경로에서 유실 지점을 단일 식별하기 어려웠다.
+  - 사용자 체감 이슈("입력 후 출력 미표시")를 PR31~PR34 검증 로그만으로 설명할 수 없었다.
+- Improvement:
+  - 메시지 계약에 `traceId` 필드 확장(`openClaude`, `terminalCreate/input/resize/close`, `terminalReady/data/exit`)
+  - host 상태에 `terminalTraceId` 추가 및 `runTerminalCommand`/`terminalExit` trace 로그 출력 추가
+  - webview `+ Agent` 클릭 시 trace id 생성/전달, embedded terminal 헤더에 trace short id 표시
+  - webview host-message 파서 보정: `data` 필드가 있어도 `type`이 있는 메시지는 unwrap하지 않도록 수정(terminalData 누락 방지)
+  - 통합 테스트 스크립트 보정: ANSI/청크 분할 환경에서도 로그 매칭되도록 `test-desktop-runtime`, `test-desktop-trace`를 누적 버퍼 기반으로 강화
+- Validation:
+  - `npm run check-types` pass
+  - `npm run build:webview` pass
+  - `npm run test:desktop-trace` pass
+  - `npm run test:desktop-runtime` pass
+- Validation Reflection:
+  - trace smoke 기준으로 `trace start id === trace ack id`를 자동 확인할 수 있게 되었고, 출력 유실 지점 식별성이 확보됐다.
+  - 핵심 결론: "입력 후 출력 미표시"의 1차 원인은 host-message 파서가 `terminalData`를 문자열 payload로 오인해 버리는 경로였다.
+  - 단, 사용자 클릭 시나리오(`+ Agent`/history click)를 종료조건으로 강제하는 게이트는 PR37에서 마무리해야 한다.
+- Result Summary:
+  - PR35는 trace lock + 파서 보정 + e2e trace 검증까지 완료했다.
+  - 상태는 `in_progress` 유지(사용자 시나리오 종료 게이트 편입 전 단계).
+
+### PR36
+- Review:
+  - PR35에서 파서 보정은 완료됐지만, 터미널 트래픽이 범용 `window.message` 채널을 계속 사용하면 wrapper/unwrap 회귀 위험이 남아 있었다.
+  - session contract 단순화의 첫 단계는 "터미널 전용 전달 경로"를 분리해 메시지 의미(`type/data`)를 보존하는 것이다.
+- Improvement:
+  - desktop host에서 `terminalReady`/`terminalData`/`terminalExit`를 전용 이벤트(`pixel-agents:terminal`)로 송신하도록 분리
+  - webview `EmbeddedTerminal`이 전용 이벤트를 우선 수신하도록 추가하고, 기존 `message` 경로는 호환성 fallback으로 유지
+  - host에 attach/detach 규칙 고정:
+    - `terminalInput/terminalResize/terminalClose`는 active `instanceId`와 일치할 때만 처리
+    - stale instance 메시지는 무시
+    - detached(`terminalInstanceId = null`) 상태에서는 host->webview terminal 이벤트를 송신하지 않고 replay만 누적
+- Validation:
+  - `npm run check-types` pass
+  - `npm run build:webview` pass
+  - `npm run test:desktop-trace` pass
+  - `npm run test:desktop-runtime` pass
+  - `npm run test:desktop-contract-loop` pass (`10/10`)
+- Validation Reflection:
+  - 전용 채널 적용 이후에도 trace smoke(`trace start id === trace ack id`)와 runtime health가 모두 유지된다.
+  - attach/detach 단일 모델의 핵심 가드는 적용됐다.
+  - contract probe 반복 검증(`10/10`)에서 stale `input/resize/close` 차단 + trace ack를 모두 확인했다.
+- Result Summary:
+  - PR36 1~2단계(전용 채널 분리 + instance 기반 attach/detach 가드)는 완료.
+  - PR36 상태를 `done`으로 전환.
+
 ## Acceptance Criteria
 - PTY 독립 테스트가 항상 통과하고 실패 원인이 브리지와 분리되어 식별된다.
 - Desktop 통합 경로에서 명령 입력 후 출력 누락이 재현되지 않는다.
 - 간헐 `EBADF`가 발생해도 세션 출력 경로가 유지된다.
 - PR별 작업기록에 `Review/개선/검증/검증반영/결과요약`이 누락 없이 남는다.
 - `+ Agent` 사용자 경로에서 첫 출력이 관측 가능하고, 유실 시 trace로 원인 단계가 즉시 식별된다.
+
+## External Reference Notes (blackboardsh/colab)
+- 확인일: 2026-03-08
+- 참고 구현:
+  - `src/main/utils/terminalManager.ts`
+  - `src/renderers/components/ColabTerminal.ts`
+  - `src/pty/main.zig`
+- 관찰 포인트:
+  - 터미널 이벤트를 범용 message wrapper 없이 `terminalOutput`/`terminalExit` 전용 RPC로 전달해 payload 언래핑 오류 여지를 줄임
+  - 세션/창 소유권(`terminalId -> windowId`)을 명시적으로 유지하고 창 종료 시 하위 터미널을 일괄 정리
+  - 입력 파이프에서 `terminal.ready` 게이트, 대용량 paste chunking, 제어문자 필터링을 적용
+  - PTY 바이너리를 독립 프로세스로 두고 NDJSON(`type/data/error`) 프로토콜로 host와 통신
+- PR36/PR37 반영 항목:
+  - host->webview 터미널 전용 채널 계약 고정(범용 unwrap 경로 우회)
+  - 세션 소유권/생명주기(state machine) 규칙을 메시지 계약과 동일한 단일 모델로 수렴
+  - paste chunking + 제어문자 필터를 desktop host write 경로에 반영 검토
+
+## Follow-up (2026-03-08)
+- Colab 스타일 Zig PTY bridge를 desktop host 기본 backend로 연결했다.
+  - 추가: `apps/desktop/pty/main.zig` (JSON line protocol PTY process)
+  - 추가: `apps/desktop/src/bun/zigPtyBridge.ts` (host-side bridge wrapper)
+  - 변경: host는 `zig` backend 우선 사용, 실패 시 `node-pty`로 폴백
+  - 변경: `setup:desktop`에서 Zig PTY 자동 빌드(`apps/desktop/scripts/build-pty.mjs`)
+- 검증:
+  - `npm run check-types` pass
+  - `PIXEL_AGENTS_TRACE_CONTRACT=1 npm run test:desktop-trace` pass
+  - trace smoke 실실행 로그에서 `terminal backend=zig (...)` 확인
