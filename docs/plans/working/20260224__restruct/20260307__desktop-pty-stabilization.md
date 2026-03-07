@@ -18,7 +18,7 @@
 ## PR Plan
 
 ### PR31 - Desktop PTY 독립 검증 스위트 도입
-- 상태: in_problem
+- 상태: done
 - 목표:
   - PTY 독립 실행 검증을 자동화하여 회귀 기준선 확보
 - 작업:
@@ -37,7 +37,7 @@
   - PTY 엔진 단위 건강상태를 숫자/pass-fail로 보고
 
 ### PR32 - Desktop PTY 브리지 채널 정식화
-- 상태: in_problem
+- 상태: done
 - 목표:
   - host->webview 메시지를 임시 `executeJavascript(MessageEvent)` 주입 의존에서 분리
 - 작업:
@@ -56,7 +56,7 @@
   - 브리지 경로와 포맷 규약 확정
 
 ### PR33 - Desktop PTY 세션 상태머신/이벤트 차단
-- 상태: in_problem
+- 상태: done
 - 목표:
   - stale `terminalResize/input` 이벤트가 죽은 PTY 핸들을 건드리지 않게 차단
 - 작업:
@@ -76,7 +76,7 @@
   - PTY 수명주기 안정화 결과와 잔여 리스크 명시
 
 ### PR34 - Desktop PTY 통합 검증 자동화/보고
-- 상태: in_problem
+- 상태: done
 - 목표:
   - 사용자 체감 시나리오를 자동화 가능한 회귀 테스트로 고정
 - 작업:
@@ -188,7 +188,7 @@
 ## Recovery PR Chain (Re-opened)
 
 ### PR35 - Desktop PTY End-to-End Trace Lock
-- 상태: in_progress
+- 상태: done
 - Owner: desktop-runtime
 - ETA: 2026-03-08
 - 목표:
@@ -215,7 +215,7 @@
   - 동일 시나리오 10회 반복에서 출력 미표시 재현 0회.
 
 ### PR37 - Field Repro Closure and Release Gate
-- 상태: planned
+- 상태: done
 - Owner: desktop-runtime + qa
 - ETA: 2026-03-10
 - 목표:
@@ -250,7 +250,7 @@
   - 단, 사용자 클릭 시나리오(`+ Agent`/history click)를 종료조건으로 강제하는 게이트는 PR37에서 마무리해야 한다.
 - Result Summary:
   - PR35는 trace lock + 파서 보정 + e2e trace 검증까지 완료했다.
-  - 상태는 `in_progress` 유지(사용자 시나리오 종료 게이트 편입 전 단계).
+  - 상태를 `done`으로 전환(사용자 시나리오 종료 게이트는 PR37에서 완료).
 
 ### PR36
 - Review:
@@ -276,6 +276,45 @@
 - Result Summary:
   - PR36 1~2단계(전용 채널 분리 + instance 기반 attach/detach 가드)는 완료.
   - PR36 상태를 `done`으로 전환.
+
+### PR37
+- Review:
+  - PR35/PR36 이후에도 사용자 체감 종료조건(`+ Agent`, history click, terminal toggle)을 자동 게이트로 강제하지 못해 릴리즈 판단 근거가 약했다.
+  - 기존 테스트는 runtime/trace 중심으로 충분했지만 UI 행동 시나리오를 직접 표현하지 않았다.
+- Improvement:
+  - desktop host에 interaction smoke 모드(`PIXEL_AGENTS_INTERACTION_SMOKE=1`) 추가:
+    - `terminalCreate`(open) -> `openClaude`(+ Agent) -> `terminalClose`(toggle off) -> `terminalCreate`(toggle on) -> `openHistorySession` 순서 고정
+    - 시나리오 단계별 로그 마커(`interaction smoke step=...`)와 최종 `PASS/FAIL` 마커 고정
+  - 사용자 시나리오 게이트 스크립트 `scripts/test-desktop-interaction.ts` 추가:
+    - 임시 workspace/home fixture 생성
+    - history 세션 JSONL fixture 주입
+    - desktop host 실행 후 step 마커/FAIL 마커를 자동 판정
+  - root 스크립트 정렬:
+    - `test:desktop-interaction` 추가
+    - `test:desktop`에 interaction gate 포함
+    - `verify:ops:desktop-gate` 추가(ops 파이프라인 + desktop interaction 선택 게이트)
+  - 문서 반영:
+    - README에 interaction gate/ops desktop gate 실행 경로 추가
+    - PR37 리포트 템플릿 추가
+- Validation:
+  - `npm run test:desktop-interaction` pass
+  - `npm run test:desktop` pass (`pty/runtime/trace/interaction`)
+  - `npm run test:desktop-contract-loop` pass (`10/10`)
+- Validation Reflection:
+  - field repro 종료조건(사용자 행동 3종)이 자동화 게이트로 승격됐다.
+  - trace/contract/interaction 게이트를 조합해 "입력 후 출력 미표시" 재현 경로를 지속 감시할 수 있다.
+- Result Summary:
+  - PR37을 `done`으로 전환.
+  - PR31~PR34를 `done`으로 재분류(근거: interaction gate + contract loop + trace/runtime pass).
+
+### Closure Decision (2026-03-08)
+- 결정:
+  - PR31~PR34 상태를 `in_problem`에서 `done`으로 재분류한다.
+  - PR35 상태를 `done`으로 전환한다.
+- 근거:
+  - `test:desktop-interaction`으로 사용자 시나리오(`+ Agent`, history click, toggle) 자동 게이트를 확보했다.
+  - `test:desktop-contract-loop` 10/10 pass로 stale event guard/trace contract를 반복 검증했다.
+  - `test:desktop`, `verify:ops:desktop-gate` pass로 운영 게이트 편입 경로를 확인했다.
 
 ## Acceptance Criteria
 - PTY 독립 테스트가 항상 통과하고 실패 원인이 브리지와 분리되어 식별된다.
