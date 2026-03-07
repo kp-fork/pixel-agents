@@ -33,7 +33,10 @@
   /* Close button */
   --pixel-close-text: rgba(255, 255, 255, 0.5);
   --pixel-close-hover: #e55;
-  --pixel-hover-card-bg: rgba(30, 30, 46, 0.78);
+  --pixel-hover-card-bg: rgba(16, 18, 28, 0.94);
+  --pixel-hover-card-border: rgba(138, 146, 186, 0.92);
+  --pixel-hover-card-fg: rgba(236, 240, 255, 0.96);
+  --pixel-hover-card-dim: rgba(196, 204, 236, 0.84);
   --pixel-history-chip-bg: rgba(18, 18, 26, 0.72);
 
   /* Hints & confirmations */

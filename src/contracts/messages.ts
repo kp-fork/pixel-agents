@@ -51,9 +51,14 @@ export interface HistorySessionSummary {
 }
 
 export type WebviewToExtensionMessage =
-	| { type: 'openClaude'; folderPath?: string }
+	| { type: 'openClaude'; folderPath?: string; traceId?: string }
 	| { type: 'focusAgent'; id: string }
 	| { type: 'closeAgent'; id: string }
+	| { type: 'terminalCreate'; cols?: number; rows?: number; cwd?: string; instanceId?: string; traceId?: string }
+	| { type: 'terminalInput'; data: string; instanceId?: string; traceId?: string }
+	| { type: 'terminalResize'; cols: number; rows: number; instanceId?: string; traceId?: string }
+	| { type: 'terminalClose'; instanceId?: string; traceId?: string }
+	| { type: 'terminalTraceAck'; traceId: string; markerSeen: boolean }
 	| { type: 'saveAgentSeats'; seats: Record<string, AgentSeatAssignment> }
 	| { type: 'saveLayout'; layout: Record<string, unknown> }
 	| { type: 'setSoundEnabled'; enabled: boolean }
@@ -100,4 +105,8 @@ export type ExtensionToWebviewMessage =
 			eventBubblesEnabled?: boolean;
 			historySessionsEnabled?: boolean;
 		}
+	| { type: 'terminalReady'; cols: number; rows: number; cwd: string; shell: string; instanceId?: string; traceId?: string }
+	| { type: 'terminalData'; data: string; instanceId?: string; traceId?: string }
+	| { type: 'terminalExit'; exitCode: number; signal?: number; instanceId?: string; traceId?: string }
+	| { type: 'traceSmokeStart'; traceId: string; contractProbe?: boolean }
 	| { type: 'trackingEvent'; event: TrackingEvent };

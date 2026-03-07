@@ -10,6 +10,7 @@ import { setCharacterTemplates } from '../office/sprites/spriteData.js'
 import { vscode } from '../vscodeApi.js'
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js'
 import { setAlwaysStatusBubblesEnabled, setEventBubblesEnabled } from '../speechBubbles.js'
+import { asTypedHostMessage } from '../adapter/hostMessage.js'
 
 export interface SubagentCharacter {
   id: AgentId
@@ -241,7 +242,8 @@ export function useExtensionMessages(
     }
 
     const handler = (e: MessageEvent) => {
-      const msg = e.data
+      const msg = asTypedHostMessage<{ type?: string; [key: string]: unknown }>(e.data)
+      if (!msg) return
       const os = getOfficeState()
 
       if (msg.type === 'layoutLoaded') {

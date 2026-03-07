@@ -3,11 +3,10 @@ import type { WorkspaceFolder } from '../hooks/useExtensionMessages.js'
 import { SettingsModal } from './SettingsModal.js'
 import { LayoutModal } from './LayoutModal.js'
 import { ZOOM_MIN, ZOOM_MAX } from '../constants.js'
-import { vscode } from '../vscodeApi.js'
 
 interface BottomToolbarProps {
   isEditMode: boolean
-  onOpenClaude: () => void
+  onOpenClaude: (folderPath?: string) => void
   onToggleEditMode: () => void
   isDebugMode: boolean
   onToggleDebugMode: () => void
@@ -16,6 +15,9 @@ interface BottomToolbarProps {
   historySessionsEnabled: boolean
   onToggleHistorySessions: (enabled: boolean) => void
   workspaceFolders: WorkspaceFolder[]
+  showTerminalToggle?: boolean
+  isTerminalOpen?: boolean
+  onToggleTerminal?: () => void
 }
 
 const panelStyle: React.CSSProperties = {
@@ -60,6 +62,9 @@ export function BottomToolbar({
   historySessionsEnabled,
   onToggleHistorySessions,
   workspaceFolders,
+  showTerminalToggle = false,
+  isTerminalOpen = false,
+  onToggleTerminal,
 }: BottomToolbarProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [isLayoutOpen, setIsLayoutOpen] = useState(false)
@@ -92,7 +97,7 @@ export function BottomToolbar({
 
   const handleFolderSelect = (folder: WorkspaceFolder) => {
     setIsFolderPickerOpen(false)
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path })
+    onOpenClaude(folder.path)
   }
 
   return (
@@ -214,6 +219,24 @@ export function BottomToolbar({
           onToggleHistorySessions={onToggleHistorySessions}
         />
       </div>
+      {showTerminalToggle && (
+        <button
+          onClick={onToggleTerminal}
+          onMouseEnter={() => setHovered('terminal')}
+          onMouseLeave={() => setHovered(null)}
+          style={
+            isTerminalOpen
+              ? { ...btnActive }
+              : {
+                  ...btnBase,
+                  background: hovered === 'terminal' ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
+                }
+          }
+          title="Embedded terminal"
+        >
+          Terminal
+        </button>
+      )}
       <div style={{ display: 'flex', gap: 2, marginLeft: 2 }}>
         <button
           onClick={() => onZoomChange(zoom - 1)}

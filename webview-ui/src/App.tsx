@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { OfficeState } from './office/engine/officeState.js'
 import { OfficeCanvas } from './office/components/OfficeCanvas.js'
 import { ToolOverlay } from './office/components/ToolOverlay.js'
@@ -14,6 +14,8 @@ import { useEditorActions } from './hooks/useEditorActions.js'
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js'
 import { BottomToolbar } from './components/BottomToolbar.js'
 import { DebugView } from './components/DebugView.js'
+import { EmbeddedTerminal } from './components/EmbeddedTerminal.js'
+import { parseHostMessage } from './adapter/hostMessage.js'
 import { toHistoryTitleSnippet, toHistorySummaryText } from './historyText.js'
 
 // Game state lives outside React — updated imperatively by message handlers
@@ -70,6 +72,13 @@ function formatDateTimeCompact(iso: string): string {
   const MM = String(d.getMinutes()).padStart(2, '0')
   const SS = String(d.getSeconds()).padStart(2, '0')
   return `${yyyy}.${mm}.${dd} ${HH}:${MM}:${SS}`
+}
+
+function createTraceId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `trace-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 function EditActionBar({ editor, editorState: es }: { editor: ReturnType<typeof useEditorActions>; editorState: EditorState }) {
@@ -166,9 +175,56 @@ function App() {
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
 
   const [isDebugMode, setIsDebugMode] = useState(false)
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false)
+  const [activeTerminalTraceId, setActiveTerminalTraceId] = useState<string | null>(null)
+  const [traceContractProbe, setTraceContractProbe] = useState(false)
   const [hoveredAgentId, setHoveredAgentId] = useState<AgentId | null>(null)
+  const isDesktopHost = typeof (globalThis as { __electrobunSendToHost?: unknown }).__electrobunSendToHost === 'function'
+
+  useEffect(() => {
+    if (!isDesktopHost) return
+    const host = globalThis as typeof globalThis & {
+      __electrobun?: { receiveMessageFromBun?: (msg: unknown) => void }
+    }
+    const electrobun = host.__electrobun
+    if (!electrobun) return
+
+    const prev = electrobun.receiveMessageFromBun
+    electrobun.receiveMessageFromBun = (msg: unknown) => {
+      const parsed = parseHostMessage(msg)
+      window.dispatchEvent(new MessageEvent('message', { data: parsed ?? msg }))
+    }
+
+    return () => {
+      electrobun.receiveMessageFromBun = prev
+    }
+  }, [isDesktopHost])
+
+  useEffect(() => {
+    if (!isDesktopHost) return
+    const onMessage = (event: MessageEvent) => {
+      const msg = parseHostMessage(event.data) as { type?: string; traceId?: unknown; contractProbe?: unknown } | null
+      if (!msg || msg.type !== 'traceSmokeStart') return
+      if (typeof msg.traceId !== 'string' || msg.traceId.trim().length === 0) return
+      setActiveTerminalTraceId(msg.traceId.trim())
+      setTraceContractProbe(msg.contractProbe === true)
+      setIsTerminalOpen(true)
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [isDesktopHost])
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
+
+  const handleOpenClaude = useCallback((folderPath?: string) => {
+    const traceId = createTraceId()
+    setActiveTerminalTraceId(traceId)
+    setTraceContractProbe(false)
+    if (isDesktopHost) {
+      setIsTerminalOpen(true)
+    }
+    vscode.postMessage({ type: 'openClaude', folderPath, traceId })
+  }, [isDesktopHost])
 
   const handleSelectAgent = useCallback((id: AgentId) => {
     vscode.postMessage({ type: 'focusAgent', id })
@@ -196,6 +252,9 @@ function App() {
   const handleClick = useCallback((agentId: AgentId) => {
     const history = historySessions.find((session) => session.id === agentId)
     if (history) {
+      if (isDesktopHost) {
+        setIsTerminalOpen(true)
+      }
       vscode.postMessage({
         type: 'openHistorySession',
         historyId: history.id,
@@ -209,7 +268,7 @@ function App() {
     const meta = os.subagentMeta.get(agentId)
     const focusId = meta ? meta.parentAgentId : agentId
     vscode.postMessage({ type: 'focusAgent', id: focusId })
-  }, [historySessions])
+  }, [historySessions, isDesktopHost])
 
   const handleToggleHistorySessions = useCallback((enabled: boolean) => {
     vscode.postMessage({ type: 'setHistorySessionsEnabled', enabled })
@@ -282,20 +341,21 @@ function App() {
             top: 10,
             zIndex: 'var(--pixel-controls-z)',
             background: 'var(--pixel-hover-card-bg)',
-            border: '2px solid var(--pixel-border)',
+            border: '2px solid var(--pixel-hover-card-border)',
             boxShadow: 'var(--pixel-shadow)',
+            backdropFilter: 'blur(1.5px)',
             padding: '8px 10px',
             width: 320,
             pointerEvents: 'none',
             textAlign: 'left',
           }}
         >
-          <div style={{ fontSize: 'var(--pixel-font-sm)', color: 'var(--vscode-foreground)', marginBottom: 4 }}>
+          <div style={{ fontSize: 'var(--pixel-font-sm)', color: 'var(--pixel-hover-card-fg)', marginBottom: 4 }}>
             <div style={{ textAlign: 'left' }}>
               <div
                 style={{
                   fontSize: 'var(--pixel-font-md)',
-                  color: 'var(--vscode-foreground)',
+                  color: 'var(--pixel-hover-card-fg)',
                   fontWeight: 'var(--pixel-font-weight)',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -310,7 +370,7 @@ function App() {
                   fontSize: 'var(--pixel-font-xxs)',
                   fontWeight: 'var(--pixel-font-weight)',
                   letterSpacing: 'var(--pixel-letter-spacing)',
-                  color: 'var(--vscode-foreground)',
+                  color: 'var(--pixel-hover-card-fg)',
                   fontFamily: 'var(--vscode-font-family)',
                 }}
               >
@@ -318,16 +378,16 @@ function App() {
               </div>
             </div>
           </div>
-          <div style={{ fontSize: 'var(--pixel-font-xxs)', color: 'var(--pixel-text-dim)', marginBottom: 4, textAlign: 'left' }}>
+          <div style={{ fontSize: 'var(--pixel-font-xxs)', color: 'var(--pixel-hover-card-dim)', marginBottom: 4, textAlign: 'left' }}>
             Last active: {formatDateTimeCompact(hoveredHistory.lastActivityAt)}
           </div>
-          <div style={{ fontSize: 'var(--pixel-font-xxs)', color: 'var(--pixel-text-dim)', marginBottom: 6, textAlign: 'left' }}>
+          <div style={{ fontSize: 'var(--pixel-font-xxs)', color: 'var(--pixel-hover-card-dim)', marginBottom: 6, textAlign: 'left' }}>
             Created: {formatDateTimeCompact(hoveredHistory.createdAt)}
           </div>
           <div
             style={{
               fontSize: 'var(--pixel-font-sm)',
-              color: 'var(--vscode-foreground)',
+              color: 'var(--pixel-hover-card-fg)',
               whiteSpace: 'pre-line',
               overflowWrap: 'anywhere',
               wordBreak: 'break-word',
@@ -356,7 +416,7 @@ function App() {
 
       <BottomToolbar
         isEditMode={editor.isEditMode}
-        onOpenClaude={editor.handleOpenClaude}
+        onOpenClaude={handleOpenClaude}
         onToggleEditMode={editor.handleToggleEditMode}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
@@ -365,7 +425,17 @@ function App() {
         historySessionsEnabled={historySessionsEnabled}
         onToggleHistorySessions={handleToggleHistorySessions}
         workspaceFolders={workspaceFolders}
+        showTerminalToggle={isDesktopHost}
+        isTerminalOpen={isTerminalOpen}
+        onToggleTerminal={() => setIsTerminalOpen((prev) => !prev)}
       />
+      {isDesktopHost && (
+        <EmbeddedTerminal
+          isOpen={isTerminalOpen}
+          traceId={activeTerminalTraceId}
+          contractProbe={traceContractProbe}
+        />
+      )}
 
       {editor.isEditMode && editor.isDirty && (
         <EditActionBar editor={editor} editorState={editorState} />
