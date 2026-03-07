@@ -39,6 +39,7 @@ const TERMINAL_MIN_ROWS = 8;
 const TRACE_SMOKE_ENV = 'PIXEL_AGENTS_TRACE_SMOKE';
 const TRACE_CONTRACT_ENV = 'PIXEL_AGENTS_TRACE_CONTRACT';
 const TRACE_SMOKE_MARKER_PREFIX = '__PA_TRACE_ACK__';
+const INTERACTION_SMOKE_ENV = 'PIXEL_AGENTS_INTERACTION_SMOKE';
 const DESKTOP_TERMINAL_EVENT = 'pixel-agents:terminal';
 
 type TerminalLifecycleState = 'stopped' | 'starting' | 'running' | 'closing';
@@ -99,6 +100,9 @@ interface DesktopHostState {
 	traceSmokeId: string | null;
 	traceSmokeAck: boolean;
 	traceSmokeStarted: boolean;
+	interactionSmokeMode: boolean;
+	interactionSmokeStarted: boolean;
+	interactionSmokePassed: boolean;
 	refreshTimer: ReturnType<typeof setInterval> | null;
 	didInitialize: boolean;
 	isShuttingDown: boolean;
@@ -511,6 +515,7 @@ function createInitialState(): DesktopHostState {
 	const config = loadWorkspaceDesktopSettings(workspaceRoot);
 	const traceSmokeMode = process.env[TRACE_SMOKE_ENV] === '1';
 	const traceContractProbe = process.env[TRACE_CONTRACT_ENV] === '1';
+	const interactionSmokeMode = process.env[INTERACTION_SMOKE_ENV] === '1';
 	return {
 		workspaceRoot,
 		projectDir,
@@ -546,6 +551,9 @@ function createInitialState(): DesktopHostState {
 		traceSmokeId: null,
 		traceSmokeAck: false,
 		traceSmokeStarted: false,
+		interactionSmokeMode,
+		interactionSmokeStarted: false,
+		interactionSmokePassed: false,
 		refreshTimer: null,
 		didInitialize: false,
 		isShuttingDown: false,
@@ -1049,6 +1057,70 @@ function cleanupHostResources(state: DesktopHostState, reason: string): void {
 	console.log(`[desktop] cleanup complete (${reason})`);
 }
 
+function runInteractionSmokeScenario(window: BrowserWindow, state: DesktopHostState): void {
+	if (!state.interactionSmokeMode) return;
+	if (state.interactionSmokeStarted) return;
+	state.interactionSmokeStarted = true;
+
+	const traceId = `interaction-smoke-${Date.now().toString(36)}`;
+	const instanceA = `smoke-${Date.now().toString(36)}-a`;
+	const instanceB = `smoke-${Date.now().toString(36)}-b`;
+	const history = state.historySessions[0];
+
+	const fail = (reason: string): void => {
+		state.interactionSmokePassed = false;
+		console.log(`[desktop] interaction smoke FAIL: ${reason}`);
+	};
+
+	const send = (message: WebviewToExtensionMessage): void => {
+		handleWebviewMessage(window, state, message);
+	};
+
+	console.log(`[desktop] interaction smoke start trace=${traceId}`);
+	send({ type: 'terminalCreate', cols: state.terminalCols, rows: state.terminalRows, instanceId: instanceA, traceId });
+	console.log('[desktop] interaction smoke step=terminalCreateA');
+
+	setTimeout(() => {
+		send({ type: 'openClaude', traceId });
+		console.log('[desktop] interaction smoke step=openClaude');
+		send({ type: 'terminalInput', data: 'echo __PA_INTERACTION_AGENT__\r', instanceId: instanceA, traceId });
+	}, 220);
+
+	setTimeout(() => {
+		send({ type: 'terminalClose', instanceId: instanceA, traceId });
+		console.log('[desktop] interaction smoke step=terminalToggleOff');
+	}, 540);
+
+	setTimeout(() => {
+		send({ type: 'terminalCreate', cols: state.terminalCols, rows: state.terminalRows, instanceId: instanceB, traceId });
+		console.log('[desktop] interaction smoke step=terminalToggleOn');
+	}, 820);
+
+	setTimeout(() => {
+		if (!history) {
+			fail('history session is missing');
+			return;
+		}
+		send({
+			type: 'openHistorySession',
+			historyId: history.id,
+			sessionId: history.sessionId,
+			jsonlPath: history.jsonlPath,
+		});
+		console.log(`[desktop] interaction smoke step=openHistorySession session=${history.sessionId}`);
+	}, 1150);
+
+	setTimeout(() => {
+		if (!history) {
+			fail('history session step did not run');
+			return;
+		}
+		send({ type: 'terminalInput', data: 'echo __PA_INTERACTION_DONE__\r', instanceId: instanceB, traceId });
+		state.interactionSmokePassed = true;
+		console.log('[desktop] interaction smoke PASS');
+	}, 1550);
+}
+
 function handleWebviewMessage(window: BrowserWindow, state: DesktopHostState, message: WebviewToExtensionMessage): void {
 	switch (message.type) {
 		case 'webviewReady':
@@ -1088,6 +1160,7 @@ function handleWebviewMessage(window: BrowserWindow, state: DesktopHostState, me
 				}, 1200);
 			}
 			startRefreshLoop(window, state);
+			runInteractionSmokeScenario(window, state);
 			return;
 		case 'focusAgent':
 			if (!state.agents.has(message.id)) return;

@@ -126,6 +126,18 @@ For lint warning regression detection (quality gate):
 npm run quality:lint-budget
 ```
 
+Desktop interaction gate (`+ Agent` / history click / terminal toggle):
+
+```bash
+npm run test:desktop-interaction
+```
+
+Optional ops pipeline including desktop interaction gate:
+
+```bash
+npm run verify:ops:desktop-gate
+```
+
 Release checklist: `docs/release-checklist.md`
 
 History session preview behavior can be configured in VS Code settings:
