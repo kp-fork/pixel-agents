@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import { OfficeState } from './office/engine/officeState.js'
 import { OfficeCanvas } from './office/components/OfficeCanvas.js'
 import { ToolOverlay } from './office/components/ToolOverlay.js'
@@ -80,6 +81,30 @@ function createTraceId(): string {
   }
   return `trace-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
+
+function createTerminalInstanceId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `term-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function shortSessionLabel(sessionId: string): string {
+  return sessionId.length > 8 ? sessionId.slice(0, 8) : sessionId
+}
+
+interface TerminalTab {
+  instanceId: string
+  label: string
+  sessionId: string | null
+  traceId: string | null
+  contractProbe: boolean
+}
+
+const TERMINAL_PANEL_BOTTOM = 54
+const TERMINAL_PANEL_MIN_HEIGHT = 190
+const TERMINAL_PANEL_DEFAULT_HEIGHT = 300
+const TERMINAL_PANEL_TOP_GUTTER = 96
 
 function EditActionBar({ editor, editorState: es }: { editor: ReturnType<typeof useEditorActions>; editorState: EditorState }) {
   const [showResetConfirm, setShowResetConfirm] = useState(false)
@@ -175,11 +200,56 @@ function App() {
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty)
 
   const [isDebugMode, setIsDebugMode] = useState(false)
-  const [isTerminalOpen, setIsTerminalOpen] = useState(false)
-  const [activeTerminalTraceId, setActiveTerminalTraceId] = useState<string | null>(null)
-  const [traceContractProbe, setTraceContractProbe] = useState(false)
+  const [isTerminalPanelOpen, setIsTerminalPanelOpen] = useState(false)
+  const [terminalTabs, setTerminalTabs] = useState<TerminalTab[]>([])
+  const [activeTerminalInstanceId, setActiveTerminalInstanceId] = useState<string | null>(null)
+  const [terminalPanelHeight, setTerminalPanelHeight] = useState<number>(TERMINAL_PANEL_DEFAULT_HEIGHT)
   const [hoveredAgentId, setHoveredAgentId] = useState<AgentId | null>(null)
   const isDesktopHost = typeof (globalThis as { __electrobunSendToHost?: unknown }).__electrobunSendToHost === 'function'
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const clampTerminalPanelHeight = useCallback((value: number) => {
+    const containerHeight = containerRef.current?.clientHeight ?? window.innerHeight
+    const maxHeight = Math.max(
+      TERMINAL_PANEL_MIN_HEIGHT,
+      containerHeight - TERMINAL_PANEL_BOTTOM - TERMINAL_PANEL_TOP_GUTTER,
+    )
+    return Math.min(Math.max(value, TERMINAL_PANEL_MIN_HEIGHT), maxHeight)
+  }, [])
+
+  const activateSessionTab = useCallback((sessionId: string, label: string): string => {
+    const existing = terminalTabs.find((tab) => tab.sessionId === sessionId)
+    if (existing) {
+      setActiveTerminalInstanceId(existing.instanceId)
+      if (isDesktopHost) setIsTerminalPanelOpen(true)
+      return existing.instanceId
+    }
+    const instanceId = createTerminalInstanceId()
+    setTerminalTabs((prev) => [...prev, {
+      instanceId,
+      label,
+      sessionId,
+      traceId: null,
+      contractProbe: false,
+    }])
+    setActiveTerminalInstanceId(instanceId)
+    if (isDesktopHost) setIsTerminalPanelOpen(true)
+    return instanceId
+  }, [terminalTabs, isDesktopHost])
+
+  const createLaunchTab = useCallback((traceId: string): string => {
+    const instanceId = createTerminalInstanceId()
+    setTerminalTabs((prev) => [...prev, {
+      instanceId,
+      label: `Agent ${prev.filter((tab) => tab.sessionId === null).length + 1}`,
+      sessionId: null,
+      traceId,
+      contractProbe: false,
+    }])
+    setActiveTerminalInstanceId(instanceId)
+    if (isDesktopHost) setIsTerminalPanelOpen(true)
+    return instanceId
+  }, [isDesktopHost])
 
   useEffect(() => {
     if (!isDesktopHost) return
@@ -206,31 +276,75 @@ function App() {
       const msg = parseHostMessage(event.data) as { type?: string; traceId?: unknown; contractProbe?: unknown } | null
       if (!msg || msg.type !== 'traceSmokeStart') return
       if (typeof msg.traceId !== 'string' || msg.traceId.trim().length === 0) return
-      setActiveTerminalTraceId(msg.traceId.trim())
-      setTraceContractProbe(msg.contractProbe === true)
-      setIsTerminalOpen(true)
+      const traceId = msg.traceId.trim()
+      const probe = msg.contractProbe === true
+      const instanceId = activeTerminalInstanceId || createTerminalInstanceId()
+      setTerminalTabs((prev) => {
+        const index = prev.findIndex((tab) => tab.instanceId === instanceId)
+        if (index >= 0) {
+          const next = [...prev]
+          next[index] = { ...next[index], traceId, contractProbe: probe }
+          return next
+        }
+        return [...prev, {
+          instanceId,
+          label: 'Trace Smoke',
+          sessionId: null,
+          traceId,
+          contractProbe: probe,
+        }]
+      })
+      setActiveTerminalInstanceId(instanceId)
+      setIsTerminalPanelOpen(true)
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [isDesktopHost])
+  }, [activeTerminalInstanceId, isDesktopHost])
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
 
   const handleOpenClaude = useCallback((folderPath?: string) => {
     const traceId = createTraceId()
-    setActiveTerminalTraceId(traceId)
-    setTraceContractProbe(false)
-    if (isDesktopHost) {
-      setIsTerminalOpen(true)
-    }
-    vscode.postMessage({ type: 'openClaude', folderPath, traceId })
-  }, [isDesktopHost])
+    const instanceId = createLaunchTab(traceId)
+    vscode.postMessage({ type: 'openClaude', folderPath, traceId, instanceId })
+  }, [createLaunchTab])
 
   const handleSelectAgent = useCallback((id: AgentId) => {
-    vscode.postMessage({ type: 'focusAgent', id })
-  }, [])
+    const instanceId = activateSessionTab(id, `Live ${shortSessionLabel(id)}`)
+    vscode.postMessage({ type: 'focusAgent', id, instanceId })
+  }, [activateSessionTab])
 
-  const containerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    setTerminalPanelHeight((prev) => clampTerminalPanelHeight(prev))
+  }, [clampTerminalPanelHeight])
+
+  useEffect(() => {
+    const onResize = () => {
+      setTerminalPanelHeight((prev) => clampTerminalPanelHeight(prev))
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [clampTerminalPanelHeight])
+
+  const handleTerminalResizeStart = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const startY = event.clientY
+    const startHeight = terminalPanelHeight
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const delta = startY - moveEvent.clientY
+      setTerminalPanelHeight(clampTerminalPanelHeight(startHeight + delta))
+    }
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [clampTerminalPanelHeight, terminalPanelHeight])
 
   const [editorTickForKeyboard, setEditorTickForKeyboard] = useState(0)
   useEditorKeyboard(
@@ -252,14 +366,13 @@ function App() {
   const handleClick = useCallback((agentId: AgentId) => {
     const history = historySessions.find((session) => session.id === agentId)
     if (history) {
-      if (isDesktopHost) {
-        setIsTerminalOpen(true)
-      }
+      const instanceId = activateSessionTab(history.sessionId, `Hist ${shortSessionLabel(history.sessionId)}`)
       vscode.postMessage({
         type: 'openHistorySession',
         historyId: history.id,
         sessionId: history.sessionId,
         jsonlPath: history.jsonlPath,
+        instanceId,
       })
       return
     }
@@ -267,12 +380,31 @@ function App() {
     const os = getOfficeState()
     const meta = os.subagentMeta.get(agentId)
     const focusId = meta ? meta.parentAgentId : agentId
-    vscode.postMessage({ type: 'focusAgent', id: focusId })
-  }, [historySessions, isDesktopHost])
+    const instanceId = activateSessionTab(focusId, `Live ${shortSessionLabel(focusId)}`)
+    vscode.postMessage({ type: 'focusAgent', id: focusId, instanceId })
+  }, [activateSessionTab, historySessions])
 
   const handleToggleHistorySessions = useCallback((enabled: boolean) => {
     vscode.postMessage({ type: 'setHistorySessionsEnabled', enabled })
   }, [])
+
+  const handleSelectTerminalTab = useCallback((instanceId: string) => {
+    setActiveTerminalInstanceId(instanceId)
+    if (isDesktopHost) setIsTerminalPanelOpen(true)
+  }, [isDesktopHost])
+
+  const handleCloseTerminalTab = useCallback((instanceId: string) => {
+    setTerminalTabs((prev) => {
+      const next = prev.filter((tab) => tab.instanceId !== instanceId)
+      if (activeTerminalInstanceId === instanceId) {
+        setActiveTerminalInstanceId(next[0]?.instanceId ?? null)
+      }
+      if (next.length === 0) {
+        setIsTerminalPanelOpen(false)
+      }
+      return next
+    })
+  }, [activeTerminalInstanceId])
 
   const officeState = getOfficeState()
   const hoveredHistory = !editor.isEditMode
@@ -426,16 +558,101 @@ function App() {
         onToggleHistorySessions={handleToggleHistorySessions}
         workspaceFolders={workspaceFolders}
         showTerminalToggle={isDesktopHost}
-        isTerminalOpen={isTerminalOpen}
-        onToggleTerminal={() => setIsTerminalOpen((prev) => !prev)}
+        isTerminalOpen={isTerminalPanelOpen}
+        onToggleTerminal={() => setIsTerminalPanelOpen((prev) => !prev)}
       />
-      {isDesktopHost && (
-        <EmbeddedTerminal
-          isOpen={isTerminalOpen}
-          traceId={activeTerminalTraceId}
-          contractProbe={traceContractProbe}
+      {isDesktopHost && isTerminalPanelOpen && terminalTabs.length > 0 && (
+        <div
+          onMouseDown={handleTerminalResizeStart}
+          style={{
+            position: 'absolute',
+            left: 10,
+            right: 10,
+            bottom: TERMINAL_PANEL_BOTTOM + terminalPanelHeight - 4,
+            height: 8,
+            zIndex: 'calc(var(--pixel-controls-z) + 1)',
+            cursor: 'row-resize',
+            background: 'transparent',
+          }}
+          title="Resize terminal panel"
         />
       )}
+      {isDesktopHost && terminalTabs.length > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 12,
+            right: 12,
+            bottom: TERMINAL_PANEL_BOTTOM + terminalPanelHeight + 8,
+            zIndex: 'var(--pixel-controls-z)',
+            display: isTerminalPanelOpen ? 'flex' : 'none',
+            gap: 4,
+            overflowX: 'auto',
+            paddingBottom: 2,
+          }}
+        >
+          {terminalTabs.map((tab) => {
+            const active = tab.instanceId === activeTerminalInstanceId
+            return (
+              <div
+                key={tab.instanceId}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 8px',
+                  border: active ? '2px solid var(--pixel-accent)' : '2px solid var(--pixel-border)',
+                  background: active ? 'var(--pixel-active-bg)' : 'var(--pixel-bg)',
+                  color: 'var(--pixel-text)',
+                  fontSize: 'var(--pixel-font-sm)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <button
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'inherit',
+                    cursor: 'pointer',
+                    fontSize: 'inherit',
+                    padding: 0,
+                  }}
+                  onClick={() => handleSelectTerminalTab(tab.instanceId)}
+                  title={tab.instanceId}
+                >
+                  {tab.label}
+                </button>
+                <button
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'inherit',
+                    cursor: 'pointer',
+                    fontSize: 'inherit',
+                    padding: 0,
+                    opacity: 0.8,
+                  }}
+                  onClick={() => handleCloseTerminalTab(tab.instanceId)}
+                  title="Close tab"
+                >
+                  x
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {isDesktopHost && terminalTabs.map((tab) => (
+        <EmbeddedTerminal
+          key={tab.instanceId}
+          instanceId={tab.instanceId}
+          isVisible={isTerminalPanelOpen && tab.instanceId === activeTerminalInstanceId}
+          panelBottom={TERMINAL_PANEL_BOTTOM}
+          panelHeight={terminalPanelHeight}
+          traceId={tab.traceId}
+          contractProbe={tab.contractProbe}
+        />
+      ))}
 
       {editor.isEditMode && editor.isDirty && (
         <EditActionBar editor={editor} editorState={editorState} />

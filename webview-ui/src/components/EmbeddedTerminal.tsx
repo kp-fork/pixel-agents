@@ -3,7 +3,10 @@ import { vscode } from '../vscodeApi.js'
 import { asTypedHostMessage } from '../adapter/hostMessage.js'
 
 interface EmbeddedTerminalProps {
-  isOpen: boolean
+  instanceId: string
+  isVisible: boolean
+  panelBottom: number
+  panelHeight: number
   traceId?: string | null
   contractProbe?: boolean
 }
@@ -52,26 +55,29 @@ function loadGhosttyRuntime(): Promise<GhosttyModuleLike> {
   return ghosttyRuntimePromise
 }
 
-function createTerminalInstanceId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-  return `term-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-export function EmbeddedTerminal({ isOpen, traceId, contractProbe }: EmbeddedTerminalProps) {
+export function EmbeddedTerminal({
+  instanceId,
+  isVisible,
+  panelBottom,
+  panelHeight,
+  traceId,
+  contractProbe,
+}: EmbeddedTerminalProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<GhosttyTerminalLike | null>(null)
   const fitAddonRef = useRef<GhosttyFitAddonLike | null>(null)
-  const initializedRef = useRef(false)
   const disposeRef = useRef<(() => void) | null>(null)
-  const instanceIdRef = useRef<string>(createTerminalInstanceId())
   const smokeCommandSentRef = useRef<Set<string>>(new Set())
   const contractProbeSentRef = useRef<Set<string>>(new Set())
   const traceAckSentRef = useRef<Set<string>>(new Set())
   const traceIdRef = useRef<string | null>(traceId ?? null)
   const contractProbeRef = useRef<boolean>(Boolean(contractProbe))
+  const instanceIdRef = useRef<string>(instanceId)
   const [readyText, setReadyText] = useState('Initializing...')
+
+  useEffect(() => {
+    instanceIdRef.current = instanceId
+  }, [instanceId])
 
   useEffect(() => {
     traceIdRef.current = traceId ?? null
@@ -82,9 +88,6 @@ export function EmbeddedTerminal({ isOpen, traceId, contractProbe }: EmbeddedTer
   }, [contractProbe])
 
   useEffect(() => {
-    if (!isOpen || initializedRef.current) return
-    initializedRef.current = true
-
     let cancelled = false
 
     const sendTraceSmokeMarker = (nextTraceId: string): void => {
@@ -148,6 +151,9 @@ export function EmbeddedTerminal({ isOpen, traceId, contractProbe }: EmbeddedTer
     }) => {
       const terminal = terminalRef.current
       if (!terminal) return
+      if (typeof msg.instanceId !== 'string' || msg.instanceId !== instanceIdRef.current) {
+        return
+      }
 
       if (msg.type === 'terminalData' && typeof msg.data === 'string') {
         terminal.write(msg.data)
@@ -230,7 +236,9 @@ export function EmbeddedTerminal({ isOpen, traceId, contractProbe }: EmbeddedTer
         return true
       })
       fitAddon.fit()
-      term.focus()
+      if (isVisible) {
+        term.focus()
+      }
 
       terminalRef.current = term
       fitAddonRef.current = fitAddon
@@ -325,7 +333,7 @@ export function EmbeddedTerminal({ isOpen, traceId, contractProbe }: EmbeddedTer
     return () => {
       cancelled = true
     }
-  }, [isOpen])
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -335,7 +343,7 @@ export function EmbeddedTerminal({ isOpen, traceId, contractProbe }: EmbeddedTer
   }, [])
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isVisible) return
     const fitAddon = fitAddonRef.current
     const term = terminalRef.current
     if (!fitAddon || !term) return
@@ -348,10 +356,10 @@ export function EmbeddedTerminal({ isOpen, traceId, contractProbe }: EmbeddedTer
       instanceId: instanceIdRef.current,
       traceId: traceIdRef.current || undefined,
     })
-  }, [isOpen, traceId])
+  }, [isVisible, panelHeight, traceId])
 
   useEffect(() => {
-    if (!isOpen || !traceId || !traceId.startsWith(TRACE_SMOKE_PREFIX)) return
+    if (!traceId || !traceId.startsWith(TRACE_SMOKE_PREFIX)) return
     const term = terminalRef.current
     if (!term) return
     if (smokeCommandSentRef.current.has(traceId)) return
@@ -365,7 +373,7 @@ export function EmbeddedTerminal({ isOpen, traceId, contractProbe }: EmbeddedTer
         traceId,
       })
     }, 450)
-  }, [isOpen, traceId])
+  }, [traceId])
 
   return (
     <div
@@ -373,16 +381,15 @@ export function EmbeddedTerminal({ isOpen, traceId, contractProbe }: EmbeddedTer
         position: 'absolute',
         left: 10,
         right: 10,
-        bottom: 54,
-        height: '34%',
-        minHeight: 190,
+        bottom: panelBottom,
+        height: panelHeight,
         zIndex: 'var(--pixel-controls-z)',
         background: '#020617',
         border: '1px solid rgba(148, 163, 184, 0.3)',
         boxShadow: '0 10px 30px rgba(2, 6, 23, 0.5)',
         borderRadius: 8,
         overflow: 'hidden',
-        display: isOpen ? 'flex' : 'none',
+        display: isVisible ? 'flex' : 'none',
         flexDirection: 'column',
       }}
     >

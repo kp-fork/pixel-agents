@@ -51,8 +51,8 @@ export interface HistorySessionSummary {
 }
 
 export type WebviewToExtensionMessage =
-	| { type: 'openClaude'; folderPath?: string; traceId?: string }
-	| { type: 'focusAgent'; id: string }
+	| { type: 'openClaude'; folderPath?: string; traceId?: string; instanceId?: string }
+	| { type: 'focusAgent'; id: string; instanceId?: string }
 	| { type: 'closeAgent'; id: string }
 	| { type: 'terminalCreate'; cols?: number; rows?: number; cwd?: string; instanceId?: string; traceId?: string }
 	| { type: 'terminalInput'; data: string; instanceId?: string; traceId?: string }
@@ -68,7 +68,7 @@ export type WebviewToExtensionMessage =
 	| { type: 'setHistorySessionsEnabled'; enabled: boolean }
 	| { type: 'webviewReady' }
 	| { type: 'openSessionsFolder' }
-	| { type: 'openHistorySession'; historyId: string; sessionId: string; jsonlPath: string }
+	| { type: 'openHistorySession'; historyId: string; sessionId: string; jsonlPath: string; instanceId?: string }
 	| { type: 'openExternal'; target: string }
 	| { type: 'exportLayout' }
 	| { type: 'exportPack' }

@@ -43,6 +43,21 @@ const INTERACTION_SMOKE_ENV = 'PIXEL_AGENTS_INTERACTION_SMOKE';
 const DESKTOP_TERMINAL_EVENT = 'pixel-agents:terminal';
 
 type TerminalLifecycleState = 'stopped' | 'starting' | 'running' | 'closing';
+type TerminalSessionSource = 'launch' | 'history' | null;
+
+interface TerminalRuntimeState {
+	instanceId: string;
+	terminalPty: TerminalPtyLike | null;
+	terminalBackend: 'zig' | 'node-pty' | null;
+	terminalCols: number;
+	terminalRows: number;
+	terminalCwd: string;
+	terminalReplay: string;
+	terminalTraceId: string | null;
+	terminalLifecycle: TerminalLifecycleState;
+	terminalSessionSource: TerminalSessionSource;
+	activeTerminalSessionId: string | null;
+}
 
 interface DesktopAgent {
 	id: string;
@@ -85,16 +100,8 @@ interface DesktopHostState {
 	forcedLiveSessionIds: Set<string>;
 	claudeLaunchCommand: string;
 	claudeResumeCommand: string;
-	terminalPty: TerminalPtyLike | null;
-	terminalBackend: 'zig' | 'node-pty' | null;
-	terminalCols: number;
-	terminalRows: number;
-	terminalCwd: string;
-	terminalReplay: string;
-	terminalInstanceId: string | null;
-	terminalTraceId: string | null;
-	terminalLifecycle: TerminalLifecycleState;
-	activeTerminalSessionId: string | null;
+	terminalInstances: Map<string, TerminalRuntimeState>;
+	activeTerminalInstanceId: string | null;
 	traceSmokeMode: boolean;
 	traceContractProbe: boolean;
 	traceSmokeId: string | null;
@@ -536,16 +543,8 @@ function createInitialState(): DesktopHostState {
 		forcedLiveSessionIds: new Set(),
 		claudeLaunchCommand: config.claudeLaunchCommand,
 		claudeResumeCommand: config.claudeResumeCommand,
-		terminalPty: null,
-		terminalBackend: null,
-		terminalCols: DESKTOP_PTY_DEFAULT_COLS,
-		terminalRows: DESKTOP_PTY_DEFAULT_ROWS,
-		terminalCwd: workspaceRoot || process.cwd(),
-		terminalReplay: '',
-		terminalInstanceId: null,
-		terminalTraceId: null,
-		terminalLifecycle: 'stopped',
-		activeTerminalSessionId: null,
+		terminalInstances: new Map(),
+		activeTerminalInstanceId: null,
 		traceSmokeMode,
 		traceContractProbe,
 		traceSmokeId: null,
@@ -749,6 +748,11 @@ function buildClaudeCommand(template: string, sessionId?: string): string {
 	return safeTemplate;
 }
 
+function buildClaudeLaunchCommand(template: string): string {
+	const base = buildClaudeCommand(template);
+	return `${base}; exit`;
+}
+
 function normalizeTerminalSize(value: unknown, fallback: number, min: number): number {
 	const safeFallback = Number.isFinite(fallback) ? fallback : min;
 	if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -775,128 +779,204 @@ function shortInstanceId(value: string | null): string {
 	return `${value.slice(0, 6)}…${value.slice(-4)}`;
 }
 
-function setAttachedTerminalInstance(state: DesktopHostState, instanceId: string | null): void {
-	const next = normalizeInstanceId(instanceId);
-	const prev = state.terminalInstanceId;
-	state.terminalInstanceId = next;
-	if (prev && next && prev !== next) {
-		console.log(`[desktop] terminal attachment switched: ${prev.slice(0, 8)} -> ${next.slice(0, 8)}`);
-	}
-}
-
-function isActiveTerminalAttachment(state: DesktopHostState, instanceId: unknown): boolean {
-	const incoming = normalizeInstanceId(instanceId);
-	return Boolean(incoming && state.terminalInstanceId && incoming === state.terminalInstanceId);
-}
-
 function traceLabel(traceId: string | null): string {
 	return traceId ? `trace:${traceId}` : 'trace:none';
 }
 
+function createTerminalRuntime(state: DesktopHostState, instanceId: string): TerminalRuntimeState {
+	return {
+		instanceId,
+		terminalPty: null,
+		terminalBackend: null,
+		terminalCols: DESKTOP_PTY_DEFAULT_COLS,
+		terminalRows: DESKTOP_PTY_DEFAULT_ROWS,
+		terminalCwd: state.workspaceRoot || process.cwd(),
+		terminalReplay: '',
+		terminalTraceId: null,
+		terminalLifecycle: 'stopped',
+		terminalSessionSource: null,
+		activeTerminalSessionId: null,
+	};
+}
+
+function resolveTerminalInstanceId(state: DesktopHostState, value: unknown): string | null {
+	const direct = normalizeInstanceId(value);
+	if (direct) return direct;
+	if (state.activeTerminalInstanceId) return state.activeTerminalInstanceId;
+	const first = state.terminalInstances.keys().next().value;
+	return typeof first === 'string' ? first : null;
+}
+
+function setActiveTerminalInstance(state: DesktopHostState, instanceId: string | null): void {
+	const next = normalizeInstanceId(instanceId);
+	const prev = state.activeTerminalInstanceId;
+	state.activeTerminalInstanceId = next;
+	if (prev && next && prev !== next) {
+		console.log(`[desktop] terminal attachment switched: ${shortInstanceId(prev)} -> ${shortInstanceId(next)}`);
+	}
+}
+
+function getTerminalRuntime(
+	state: DesktopHostState,
+	instanceId: string,
+	createIfMissing = true,
+): TerminalRuntimeState | null {
+	const normalized = normalizeInstanceId(instanceId);
+	if (!normalized) return null;
+	let runtime = state.terminalInstances.get(normalized) || null;
+	if (!runtime && createIfMissing) {
+		runtime = createTerminalRuntime(state, normalized);
+		state.terminalInstances.set(normalized, runtime);
+	}
+	return runtime;
+}
+
 function postTerminalReady(
 	window: BrowserWindow,
-	state: DesktopHostState,
+	runtime: TerminalRuntimeState,
 	cols: number,
 	rows: number,
 	cwd: string,
 	shell: string,
 ): void {
-	if (!state.terminalInstanceId) return;
 	postToWebview(window, {
 		type: 'terminalReady',
 		cols,
 		rows,
 		cwd,
 		shell,
-		instanceId: state.terminalInstanceId,
-		traceId: state.terminalTraceId ?? undefined,
+		instanceId: runtime.instanceId,
+		traceId: runtime.terminalTraceId ?? undefined,
 	});
 }
 
-function postTerminalData(window: BrowserWindow, state: DesktopHostState, data: string): void {
-	if (!state.terminalInstanceId) return;
+function postTerminalData(window: BrowserWindow, runtime: TerminalRuntimeState, data: string): void {
 	postToWebview(window, {
 		type: 'terminalData',
 		data,
-		instanceId: state.terminalInstanceId,
-		traceId: state.terminalTraceId ?? undefined,
+		instanceId: runtime.instanceId,
+		traceId: runtime.terminalTraceId ?? undefined,
 	});
 }
 
 function postTerminalExit(
 	window: BrowserWindow,
-	state: DesktopHostState,
+	runtime: TerminalRuntimeState,
 	exitCode: number,
 	signal?: number,
 ): void {
-	if (!state.terminalInstanceId) return;
 	postToWebview(window, {
 		type: 'terminalExit',
 		exitCode,
 		signal,
-		instanceId: state.terminalInstanceId,
-		traceId: state.terminalTraceId ?? undefined,
+		instanceId: runtime.instanceId,
+		traceId: runtime.terminalTraceId ?? undefined,
 	});
 }
 
-function writeTerminalCommand(state: DesktopHostState, command: string): boolean {
-	if (!state.terminalPty) return false;
+function writeTerminalCommand(runtime: TerminalRuntimeState, command: string): boolean {
+	if (!runtime.terminalPty) return false;
 	const trimmed = command.trim();
 	if (!trimmed) return true;
 	try {
-		state.terminalPty.write(`${trimmed}\r`);
+		runtime.terminalPty.write(`${trimmed}\r`);
 		return true;
 	} catch (error) {
 		const text = error instanceof Error ? error.message : String(error);
 		console.log(`[desktop] terminal write failed: ${text}`);
-		state.terminalPty = null;
-		state.terminalBackend = null;
-		state.terminalLifecycle = 'stopped';
-		state.activeTerminalSessionId = null;
+		runtime.terminalPty = null;
+		runtime.terminalBackend = null;
+		runtime.terminalLifecycle = 'stopped';
+		runtime.terminalSessionSource = null;
+		runtime.activeTerminalSessionId = null;
 		return false;
 	}
 }
 
-function runTerminalCommand(window: BrowserWindow, state: DesktopHostState, command: string): void {
-	console.log(`[desktop] runTerminalCommand (${traceLabel(state.terminalTraceId)}): ${command}`);
-	ensureTerminalPty(window, state);
-	if (writeTerminalCommand(state, command)) return;
+function runTerminalCommand(
+	window: BrowserWindow,
+	state: DesktopHostState,
+	runtime: TerminalRuntimeState,
+	command: string,
+): void {
+	console.log(`[desktop] runTerminalCommand (${traceLabel(runtime.terminalTraceId)}): ${command}`);
+	ensureTerminalPty(window, state, { instanceId: runtime.instanceId, traceId: runtime.terminalTraceId ?? undefined });
+	if (writeTerminalCommand(runtime, command)) return;
 	// Retry once with a fresh PTY when write failed on a stale handle.
-	ensureTerminalPty(window, state);
-	writeTerminalCommand(state, command);
+	ensureTerminalPty(window, state, { instanceId: runtime.instanceId, traceId: runtime.terminalTraceId ?? undefined });
+	writeTerminalCommand(runtime, command);
 }
 
-function appendTerminalReplay(state: DesktopHostState, chunk: string): void {
-	if (!chunk) return;
-	const next = state.terminalReplay + chunk;
-	if (next.length <= TERMINAL_REPLAY_MAX_BYTES) {
-		state.terminalReplay = next;
+function resetTerminalSession(runtime: TerminalRuntimeState, reason: string): void {
+	if (!runtime.terminalPty) {
+		runtime.terminalLifecycle = 'stopped';
+		runtime.terminalSessionSource = null;
+		runtime.activeTerminalSessionId = null;
 		return;
 	}
-	state.terminalReplay = next.slice(next.length - TERMINAL_REPLAY_MAX_BYTES);
+
+	const current = runtime.terminalPty;
+	runtime.terminalLifecycle = 'closing';
+	runtime.terminalPty = null;
+	runtime.terminalBackend = null;
+	runtime.terminalSessionSource = null;
+	runtime.activeTerminalSessionId = null;
+	runtime.terminalReplay = '';
+
+	try {
+		current.kill();
+	} catch (error) {
+		const text = error instanceof Error ? error.message : String(error);
+		console.log(`[desktop] terminal reset kill failed during ${reason}: ${text}`);
+	}
+
+	runtime.terminalLifecycle = 'stopped';
+	console.log(`[desktop] terminal reset (${reason}) instance=${shortInstanceId(runtime.instanceId)}`);
 }
 
-function attachTerminalListeners(window: BrowserWindow, state: DesktopHostState, terminal: TerminalPtyLike): void {
+function appendTerminalReplay(runtime: TerminalRuntimeState, chunk: string): void {
+	if (!chunk) return;
+	const next = runtime.terminalReplay + chunk;
+	if (next.length <= TERMINAL_REPLAY_MAX_BYTES) {
+		runtime.terminalReplay = next;
+		return;
+	}
+	runtime.terminalReplay = next.slice(next.length - TERMINAL_REPLAY_MAX_BYTES);
+}
+
+function attachTerminalListeners(
+	window: BrowserWindow,
+	state: DesktopHostState,
+	runtime: TerminalRuntimeState,
+	terminal: TerminalPtyLike,
+): void {
 	terminal.onData((data) => {
-		appendTerminalReplay(state, data);
-		postTerminalData(window, state, data);
+		if (runtime.terminalPty !== terminal) {
+			return;
+		}
+		appendTerminalReplay(runtime, data);
+		postTerminalData(window, runtime, data);
 	});
 
 	terminal.onExit((event) => {
-		const wasClosing = state.terminalLifecycle === 'closing';
-		postTerminalExit(window, state, event.exitCode, event.signal);
-		state.terminalPty = null;
-		state.terminalBackend = null;
-		state.terminalLifecycle = 'stopped';
-		state.activeTerminalSessionId = null;
+		if (runtime.terminalPty !== terminal) {
+			console.log(`[desktop] stale PTY exit ignored (${traceLabel(runtime.terminalTraceId)})`);
+			return;
+		}
+		const wasClosing = runtime.terminalLifecycle === 'closing';
+		postTerminalExit(window, runtime, event.exitCode, event.signal);
+		runtime.terminalPty = null;
+		runtime.terminalBackend = null;
+		runtime.terminalLifecycle = 'stopped';
+		runtime.activeTerminalSessionId = null;
 		console.log(
-			`[desktop] PTY exited (${traceLabel(state.terminalTraceId)}) code=${event.exitCode} signal=${event.signal ?? 0}`,
+			`[desktop] PTY exited (${traceLabel(runtime.terminalTraceId)}) instance=${shortInstanceId(runtime.instanceId)} code=${event.exitCode} signal=${event.signal ?? 0}`,
 		);
 		if (!wasClosing) {
-			postTerminalData(window, state, '\r\n[desktop] terminal exited; restarting shell...\r\n');
+			postTerminalData(window, runtime, '\r\n[desktop] terminal exited; restarting shell...\r\n');
 			ensureTerminalPty(window, state, {
-				instanceId: state.terminalInstanceId ?? undefined,
-				traceId: state.terminalTraceId ?? undefined,
+				instanceId: runtime.instanceId,
+				traceId: runtime.terminalTraceId ?? undefined,
 			});
 		}
 	});
@@ -905,6 +985,7 @@ function attachTerminalListeners(window: BrowserWindow, state: DesktopHostState,
 function createTerminalBackend(
 	window: BrowserWindow,
 	state: DesktopHostState,
+	runtime: TerminalRuntimeState,
 	cwd: string,
 	cols: number,
 	rows: number,
@@ -922,9 +1003,9 @@ function createTerminalBackend(
 				rows,
 				onLog: (text) => console.log(`[desktop] ${text}`),
 			});
-			state.terminalBackend = 'zig';
-			console.log(`[desktop] terminal backend=zig (${zigBinaryPath})`);
-			attachTerminalListeners(window, state, zig);
+			runtime.terminalBackend = 'zig';
+			console.log(`[desktop] terminal backend=zig (${zigBinaryPath}) instance=${shortInstanceId(runtime.instanceId)}`);
+			attachTerminalListeners(window, state, runtime, zig);
 			return zig;
 		} catch (error) {
 			const text = error instanceof Error ? error.message : String(error);
@@ -946,9 +1027,9 @@ function createTerminalBackend(
 			TERM_PROGRAM_VERSION: 'desktop-node-pty',
 		},
 	});
-	state.terminalBackend = 'node-pty';
-	console.log('[desktop] terminal backend=node-pty');
-	attachTerminalListeners(window, state, fallback as unknown as TerminalPtyLike);
+	runtime.terminalBackend = 'node-pty';
+	console.log(`[desktop] terminal backend=node-pty instance=${shortInstanceId(runtime.instanceId)}`);
+	attachTerminalListeners(window, state, runtime, fallback as unknown as TerminalPtyLike);
 	return fallback as unknown as TerminalPtyLike;
 }
 
@@ -956,67 +1037,113 @@ function ensureTerminalPty(
 	window: BrowserWindow,
 	state: DesktopHostState,
 	opts?: { cols?: number; rows?: number; cwd?: string; instanceId?: string; traceId?: string },
-): void {
-	const nextInstanceId = normalizeInstanceId(opts?.instanceId);
-	if (nextInstanceId) {
-		setAttachedTerminalInstance(state, nextInstanceId);
-	}
-	if (opts?.traceId) {
-		state.terminalTraceId = opts.traceId;
+): TerminalRuntimeState | null {
+	const resolved = resolveTerminalInstanceId(state, opts?.instanceId) ?? `term-${Date.now().toString(36)}`;
+	const runtime = getTerminalRuntime(state, resolved, true);
+	if (!runtime) return null;
+	setActiveTerminalInstance(state, runtime.instanceId);
+	const traceId = normalizeTraceId(opts?.traceId);
+	if (traceId) {
+		runtime.terminalTraceId = traceId;
 	}
 
-		if (state.terminalPty) {
-			const cols = normalizeTerminalSize(opts?.cols, state.terminalCols, TERMINAL_MIN_COLS);
-			const rows = normalizeTerminalSize(opts?.rows, state.terminalRows, TERMINAL_MIN_ROWS);
-			if (cols !== state.terminalCols || rows !== state.terminalRows) {
-				try {
-					state.terminalPty.resize(cols, rows);
-				} catch (error) {
-					const text = error instanceof Error ? error.message : String(error);
-					if (process.env['PIXEL_AGENTS_DEBUG_TERMINAL'] === '1') {
-						console.log(`[desktop] terminal resize failed on existing PTY: ${text}`);
-					} else {
-						console.log('[desktop] terminal resize failed on existing PTY; keeping current size');
-					}
-					// Keep PTY alive even when a resize event fails.
-					// Some runtimes emit transient resize errors while the shell remains usable.
-					state.terminalLifecycle = 'running';
-					postTerminalReady(window, state, state.terminalCols, state.terminalRows, state.terminalCwd, resolveShell().executable);
-					return;
+	if (runtime.terminalPty) {
+		const cols = normalizeTerminalSize(opts?.cols, runtime.terminalCols, TERMINAL_MIN_COLS);
+		const rows = normalizeTerminalSize(opts?.rows, runtime.terminalRows, TERMINAL_MIN_ROWS);
+		if (cols !== runtime.terminalCols || rows !== runtime.terminalRows) {
+			try {
+				runtime.terminalPty.resize(cols, rows);
+			} catch (error) {
+				const text = error instanceof Error ? error.message : String(error);
+				if (process.env['PIXEL_AGENTS_DEBUG_TERMINAL'] === '1') {
+					console.log(`[desktop] terminal resize failed on existing PTY: ${text}`);
+				} else {
+					console.log('[desktop] terminal resize failed on existing PTY; keeping current size');
 				}
-				state.terminalCols = cols;
-				state.terminalRows = rows;
+				// Keep PTY alive even when a resize event fails.
+				runtime.terminalLifecycle = 'running';
+				postTerminalReady(
+					window,
+					runtime,
+					runtime.terminalCols,
+					runtime.terminalRows,
+					runtime.terminalCwd,
+					resolveShell().executable,
+				);
+				return runtime;
 			}
-		state.terminalLifecycle = 'running';
-			postTerminalReady(window, state, state.terminalCols, state.terminalRows, state.terminalCwd, resolveShell().executable);
-			if (state.terminalReplay) {
-				postTerminalData(window, state, state.terminalReplay);
-			}
-			return;
+			runtime.terminalCols = cols;
+			runtime.terminalRows = rows;
 		}
+		runtime.terminalLifecycle = 'running';
+		postTerminalReady(
+			window,
+			runtime,
+			runtime.terminalCols,
+			runtime.terminalRows,
+			runtime.terminalCwd,
+			resolveShell().executable,
+		);
+		if (runtime.terminalReplay) {
+			postTerminalData(window, runtime, runtime.terminalReplay);
+		}
+		return runtime;
+	}
 
 	const cwd = opts?.cwd || state.workspaceRoot || process.cwd();
-	const cols = normalizeTerminalSize(opts?.cols, state.terminalCols, TERMINAL_MIN_COLS);
-	const rows = normalizeTerminalSize(opts?.rows, state.terminalRows, TERMINAL_MIN_ROWS);
+	const cols = normalizeTerminalSize(opts?.cols, runtime.terminalCols, TERMINAL_MIN_COLS);
+	const rows = normalizeTerminalSize(opts?.rows, runtime.terminalRows, TERMINAL_MIN_ROWS);
 	const shell = resolveShell();
 
 	try {
-		state.terminalLifecycle = 'starting';
-			state.terminalPty = createTerminalBackend(window, state, cwd, cols, rows, shell);
-		state.terminalCols = cols;
-		state.terminalRows = rows;
-		state.terminalCwd = cwd;
-		state.terminalLifecycle = 'running';
+		runtime.terminalLifecycle = 'starting';
+		runtime.terminalPty = createTerminalBackend(window, state, runtime, cwd, cols, rows, shell);
+		runtime.terminalCols = cols;
+		runtime.terminalRows = rows;
+		runtime.terminalCwd = cwd;
+		runtime.terminalLifecycle = 'running';
 
-			postTerminalReady(window, state, cols, rows, cwd, shell.executable);
-			if (state.terminalReplay) {
-				postTerminalData(window, state, state.terminalReplay);
-			}
-		} catch (error) {
-		const text = error instanceof Error ? error.message : String(error);
-		state.terminalLifecycle = 'stopped';
-			postTerminalData(window, state, `\r\n[desktop] failed to start terminal: ${text}\r\n`);
+		postTerminalReady(window, runtime, cols, rows, cwd, shell.executable);
+		if (runtime.terminalReplay) {
+			postTerminalData(window, runtime, runtime.terminalReplay);
 		}
+		return runtime;
+	} catch (error) {
+		const text = error instanceof Error ? error.message : String(error);
+		runtime.terminalLifecycle = 'stopped';
+		postTerminalData(window, runtime, `\r\n[desktop] failed to start terminal: ${text}\r\n`);
+		return runtime;
+	}
+}
+
+function closeTerminalInstance(
+	state: DesktopHostState,
+	instanceId: string,
+	reason: string,
+	removeFromMap: boolean,
+): void {
+	const runtime = getTerminalRuntime(state, instanceId, false);
+	if (!runtime) return;
+	runtime.terminalLifecycle = 'closing';
+	if (runtime.terminalPty) {
+		try {
+			runtime.terminalPty.kill();
+		} catch (error) {
+			const text = error instanceof Error ? error.message : String(error);
+			console.log(`[desktop] terminal PTY kill failed during ${reason}: ${text}`);
+		}
+		runtime.terminalPty = null;
+		runtime.terminalBackend = null;
+	}
+	runtime.terminalLifecycle = 'stopped';
+	runtime.activeTerminalSessionId = null;
+	if (removeFromMap) {
+		state.terminalInstances.delete(instanceId);
+		if (state.activeTerminalInstanceId === instanceId) {
+			const next = state.terminalInstances.keys().next().value;
+			setActiveTerminalInstance(state, typeof next === 'string' ? next : null);
+		}
+	}
 }
 
 function startRefreshLoop(window: BrowserWindow, state: DesktopHostState): void {
@@ -1036,21 +1163,11 @@ function cleanupHostResources(state: DesktopHostState, reason: string): void {
 	if (state.isShuttingDown) return;
 	state.isShuttingDown = true;
 	stopRefreshLoop(state);
-	state.terminalLifecycle = 'closing';
-	if (state.terminalPty) {
-		try {
-			state.terminalPty.kill();
-		} catch (error) {
-			const text = error instanceof Error ? error.message : String(error);
-			console.log(`[desktop] terminal PTY kill failed during ${reason}: ${text}`);
-		}
-		state.terminalPty = null;
-		state.terminalBackend = null;
+	for (const instanceId of Array.from(state.terminalInstances.keys())) {
+		closeTerminalInstance(state, instanceId, reason, true);
 	}
-	state.terminalLifecycle = 'stopped';
-	state.terminalInstanceId = null;
-	state.terminalTraceId = null;
-	state.activeTerminalSessionId = null;
+	state.terminalInstances.clear();
+	state.activeTerminalInstanceId = null;
 	state.traceSmokeId = null;
 	state.traceSmokeAck = false;
 	state.traceSmokeStarted = false;
@@ -1077,11 +1194,11 @@ function runInteractionSmokeScenario(window: BrowserWindow, state: DesktopHostSt
 	};
 
 	console.log(`[desktop] interaction smoke start trace=${traceId}`);
-	send({ type: 'terminalCreate', cols: state.terminalCols, rows: state.terminalRows, instanceId: instanceA, traceId });
+	send({ type: 'terminalCreate', cols: DESKTOP_PTY_DEFAULT_COLS, rows: DESKTOP_PTY_DEFAULT_ROWS, instanceId: instanceA, traceId });
 	console.log('[desktop] interaction smoke step=terminalCreateA');
 
 	setTimeout(() => {
-		send({ type: 'openClaude', traceId });
+		send({ type: 'openClaude', traceId, instanceId: instanceA });
 		console.log('[desktop] interaction smoke step=openClaude');
 		send({ type: 'terminalInput', data: 'echo __PA_INTERACTION_AGENT__\r', instanceId: instanceA, traceId });
 	}, 220);
@@ -1092,7 +1209,7 @@ function runInteractionSmokeScenario(window: BrowserWindow, state: DesktopHostSt
 	}, 540);
 
 	setTimeout(() => {
-		send({ type: 'terminalCreate', cols: state.terminalCols, rows: state.terminalRows, instanceId: instanceB, traceId });
+		send({ type: 'terminalCreate', cols: DESKTOP_PTY_DEFAULT_COLS, rows: DESKTOP_PTY_DEFAULT_ROWS, instanceId: instanceB, traceId });
 		console.log('[desktop] interaction smoke step=terminalToggleOn');
 	}, 820);
 
@@ -1106,6 +1223,7 @@ function runInteractionSmokeScenario(window: BrowserWindow, state: DesktopHostSt
 			historyId: history.id,
 			sessionId: history.sessionId,
 			jsonlPath: history.jsonlPath,
+			instanceId: instanceB,
 		});
 		console.log(`[desktop] interaction smoke step=openHistorySession session=${history.sessionId}`);
 	}, 1150);
@@ -1152,11 +1270,14 @@ function handleWebviewMessage(window: BrowserWindow, state: DesktopHostState, me
 					if (!state.traceSmokeId) return;
 					const marker = `${TRACE_SMOKE_MARKER_PREFIX}:${state.traceSmokeId}`;
 					console.log(`[desktop] trace smoke probe command ${marker}`);
-					ensureTerminalPty(window, state, {
-						instanceId: state.terminalInstanceId ?? undefined,
+					const instanceId = state.activeTerminalInstanceId ?? `trace-${Date.now().toString(36)}`;
+					const runtime = ensureTerminalPty(window, state, {
+						instanceId,
 						traceId: state.traceSmokeId,
 					});
-					runTerminalCommand(window, state, `echo ${marker}`);
+					if (runtime) {
+						runTerminalCommand(window, state, runtime, `echo ${marker}`);
+					}
 				}, 1200);
 			}
 			startRefreshLoop(window, state);
@@ -1166,6 +1287,19 @@ function handleWebviewMessage(window: BrowserWindow, state: DesktopHostState, me
 			if (!state.agents.has(message.id)) return;
 			state.selectedAgentId = message.id;
 			postToWebview(window, { type: 'agentSelected', id: message.id });
+			{
+				const requestedInstanceId = resolveTerminalInstanceId(state, message.instanceId) ?? `term-${Date.now().toString(36)}`;
+				const runtime = getTerminalRuntime(state, requestedInstanceId, true);
+				if (!runtime) return;
+				setActiveTerminalInstance(state, runtime.instanceId);
+				if (runtime.activeTerminalSessionId !== message.id) {
+					resetTerminalSession(runtime, `focusAgent:${runtime.activeTerminalSessionId ?? 'none'}->${message.id}`);
+					ensureTerminalPty(window, state, { instanceId: runtime.instanceId, traceId: runtime.terminalTraceId ?? undefined });
+					runtime.terminalSessionSource = 'history';
+					runtime.activeTerminalSessionId = message.id;
+					runTerminalCommand(window, state, runtime, buildClaudeCommand(state.claudeResumeCommand, message.id));
+				}
+			}
 			return;
 		case 'closeAgent':
 			state.hiddenSessionIds.add(message.id);
@@ -1176,96 +1310,85 @@ function handleWebviewMessage(window: BrowserWindow, state: DesktopHostState, me
 			state.agents.delete(message.id);
 			refreshAndPublish(window, state, false);
 			return;
-			case 'openHistorySession':
-				state.hiddenSessionIds.delete(message.sessionId);
-				state.forcedLiveSessionIds.add(message.sessionId);
-				state.selectedAgentId = message.sessionId;
-				ensureTerminalPty(window, state, {
-					instanceId: state.terminalInstanceId ?? undefined,
-					traceId: state.terminalTraceId ?? undefined,
-				});
-				if (state.activeTerminalSessionId !== message.sessionId) {
-					runTerminalCommand(window, state, buildClaudeCommand(state.claudeResumeCommand, message.sessionId));
-					state.activeTerminalSessionId = message.sessionId;
-				} else {
-					postTerminalData(window, state, `\r\n[desktop] session ${message.sessionId} is already attached in this terminal.\r\n`);
-				}
-					refreshAndPublish(window, state, false);
-					return;
-			case 'terminalCreate':
-				{
-					const traceId = normalizeTraceId(message.traceId);
-					if (traceId) state.terminalTraceId = traceId;
-				}
-				console.log(`[desktop] terminalCreate (${traceLabel(state.terminalTraceId)})`);
-				{
-					const requestedInstanceId = normalizeInstanceId(message.instanceId);
-					if (requestedInstanceId) {
-						setAttachedTerminalInstance(state, requestedInstanceId);
-					} else if (!state.terminalInstanceId) {
-						setAttachedTerminalInstance(state, `term-${Date.now().toString(36)}`);
+		case 'openHistorySession':
+			state.hiddenSessionIds.delete(message.sessionId);
+			state.forcedLiveSessionIds.add(message.sessionId);
+			state.selectedAgentId = message.sessionId;
+			{
+				const requestedInstanceId = resolveTerminalInstanceId(state, message.instanceId) ?? `term-${Date.now().toString(36)}`;
+				const runtime = getTerminalRuntime(state, requestedInstanceId, true);
+				if (runtime) {
+					setActiveTerminalInstance(state, runtime.instanceId);
+					if (runtime.activeTerminalSessionId !== message.sessionId) {
+						resetTerminalSession(runtime, 'openHistorySession');
+						ensureTerminalPty(window, state, { instanceId: runtime.instanceId, traceId: runtime.terminalTraceId ?? undefined });
+						runtime.terminalSessionSource = 'history';
+						runtime.activeTerminalSessionId = message.sessionId;
+						runTerminalCommand(window, state, runtime, buildClaudeCommand(state.claudeResumeCommand, message.sessionId));
 					}
 				}
-				ensureTerminalPty(window, state, {
-					cols: normalizeTerminalSize(message.cols, state.terminalCols, TERMINAL_MIN_COLS),
-					rows: normalizeTerminalSize(message.rows, state.terminalRows, TERMINAL_MIN_ROWS),
+			}
+			refreshAndPublish(window, state, false);
+			return;
+			case 'terminalCreate':
+			{
+				const requestedInstanceId = normalizeInstanceId(message.instanceId) ?? `term-${Date.now().toString(36)}`;
+				const traceId = normalizeTraceId(message.traceId);
+				console.log(`[desktop] terminalCreate (${traceLabel(traceId)}) instance=${shortInstanceId(requestedInstanceId)}`);
+				const runtime = ensureTerminalPty(window, state, {
+					cols: normalizeTerminalSize(message.cols, DESKTOP_PTY_DEFAULT_COLS, TERMINAL_MIN_COLS),
+					rows: normalizeTerminalSize(message.rows, DESKTOP_PTY_DEFAULT_ROWS, TERMINAL_MIN_ROWS),
 					cwd: message.cwd,
-					instanceId: state.terminalInstanceId ?? undefined,
-					traceId: state.terminalTraceId ?? undefined,
+					instanceId: requestedInstanceId,
+					traceId: traceId ?? undefined,
 				});
-				if (state.traceSmokeMode && state.traceSmokeId && state.terminalTraceId === state.traceSmokeId) {
+				if (runtime && state.traceSmokeMode && state.traceSmokeId && runtime.terminalTraceId === state.traceSmokeId) {
 					const marker = `${TRACE_SMOKE_MARKER_PREFIX}:${state.traceSmokeId}`;
-					postTerminalData(window, state, `${marker}\r\n`);
+					postTerminalData(window, runtime, `${marker}\r\n`);
 				}
-				return;
+			}
+			return;
 			case 'terminalInput':
-				{
-					const traceId = normalizeTraceId(message.traceId);
-					if (traceId) state.terminalTraceId = traceId;
-				}
-				if (!isActiveTerminalAttachment(state, message.instanceId)) {
-					const incoming = normalizeInstanceId(message.instanceId);
-					console.log(
-						`[desktop] stale terminalInput ignored incoming=${shortInstanceId(incoming)} active=${shortInstanceId(state.terminalInstanceId)}`,
-					);
-					return;
-				}
-				if (!state.terminalPty) return;
-				if (state.terminalLifecycle !== 'running') return;
+			{
+				const targetInstanceId = resolveTerminalInstanceId(state, message.instanceId);
+				if (!targetInstanceId) return;
+				const runtime = getTerminalRuntime(state, targetInstanceId, false);
+				if (!runtime) return;
+				const traceId = normalizeTraceId(message.traceId);
+				if (traceId) runtime.terminalTraceId = traceId;
+				if (!runtime.terminalPty) return;
+				if (runtime.terminalLifecycle !== 'running') return;
 				try {
-					state.terminalPty.write(message.data);
-			} catch (error) {
-				const text = error instanceof Error ? error.message : String(error);
-				console.log(`[desktop] terminalInput write failed: ${text}`);
-				state.terminalPty = null;
-				state.terminalBackend = null;
-				state.terminalLifecycle = 'stopped';
-				state.activeTerminalSessionId = null;
+					runtime.terminalPty.write(message.data);
+				} catch (error) {
+					const text = error instanceof Error ? error.message : String(error);
+					console.log(`[desktop] terminalInput write failed: ${text}`);
+					runtime.terminalPty = null;
+					runtime.terminalBackend = null;
+					runtime.terminalLifecycle = 'stopped';
+					runtime.activeTerminalSessionId = null;
 				}
-				return;
+			}
+			return;
 			case 'terminalResize':
-				{
-					const traceId = normalizeTraceId(message.traceId);
-					if (traceId) state.terminalTraceId = traceId;
-				}
-				if (!isActiveTerminalAttachment(state, message.instanceId)) {
-					const incoming = normalizeInstanceId(message.instanceId);
-					console.log(
-						`[desktop] stale terminalResize ignored incoming=${shortInstanceId(incoming)} active=${shortInstanceId(state.terminalInstanceId)}`,
-					);
-					return;
-				}
-				if (!state.terminalPty) return;
-				if (state.terminalLifecycle !== 'running') return;
-				const nextCols = normalizeTerminalSize(message.cols, state.terminalCols, TERMINAL_MIN_COLS);
-				const nextRows = normalizeTerminalSize(message.rows, state.terminalRows, TERMINAL_MIN_ROWS);
-				if (nextCols === state.terminalCols && nextRows === state.terminalRows) {
+			{
+				const targetInstanceId = resolveTerminalInstanceId(state, message.instanceId);
+				if (!targetInstanceId) return;
+				const runtime = getTerminalRuntime(state, targetInstanceId, false);
+				if (!runtime) return;
+				const traceId = normalizeTraceId(message.traceId);
+				if (traceId) runtime.terminalTraceId = traceId;
+				if (!runtime.terminalPty) return;
+				if (runtime.terminalLifecycle !== 'running') return;
+				const nextCols = normalizeTerminalSize(message.cols, runtime.terminalCols, TERMINAL_MIN_COLS);
+				const nextRows = normalizeTerminalSize(message.rows, runtime.terminalRows, TERMINAL_MIN_ROWS);
+				if (nextCols === runtime.terminalCols && nextRows === runtime.terminalRows) {
 					return;
 				}
 				try {
-					state.terminalPty.resize(nextCols, nextRows);
-					state.terminalCols = nextCols;
-					state.terminalRows = nextRows;
+					runtime.terminalPty.resize(nextCols, nextRows);
+					runtime.terminalCols = nextCols;
+					runtime.terminalRows = nextRows;
 				} catch (error) {
 					const text = error instanceof Error ? error.message : String(error);
 					if (process.env['PIXEL_AGENTS_DEBUG_TERMINAL'] === '1') {
@@ -1274,24 +1397,19 @@ function handleWebviewMessage(window: BrowserWindow, state: DesktopHostState, me
 						console.log('[desktop] terminalResize failed; keeping previous PTY size');
 					}
 				}
-				return;
+			}
+			return;
 			case 'terminalClose':
-				{
-					const traceId = normalizeTraceId(message.traceId);
-					if (traceId) state.terminalTraceId = traceId;
-				}
-				if (!isActiveTerminalAttachment(state, message.instanceId)) {
-					const incoming = normalizeInstanceId(message.instanceId);
-					console.log(
-						`[desktop] stale terminalClose ignored incoming=${shortInstanceId(incoming)} active=${shortInstanceId(state.terminalInstanceId)}`,
-					);
-					return;
-				}
-				// Keep PTY process alive across transient webview remounts.
-				// The host window close handler still performs final cleanup.
-				state.terminalLifecycle = state.terminalPty ? 'running' : 'stopped';
-				setAttachedTerminalInstance(state, null);
-				return;
+			{
+				const targetInstanceId = resolveTerminalInstanceId(state, message.instanceId);
+				if (!targetInstanceId) return;
+				const runtime = getTerminalRuntime(state, targetInstanceId, false);
+				if (!runtime) return;
+				const traceId = normalizeTraceId(message.traceId);
+				if (traceId) runtime.terminalTraceId = traceId;
+				closeTerminalInstance(state, targetInstanceId, 'terminalClose', true);
+			}
+			return;
 			case 'terminalTraceAck':
 				{
 					const traceId = normalizeTraceId(message.traceId);
@@ -1328,19 +1446,24 @@ function handleWebviewMessage(window: BrowserWindow, state: DesktopHostState, me
 		case 'openExternal':
 			openExternalTarget(message.target);
 			return;
-			case 'openClaude':
-				{
-					const traceId = normalizeTraceId(message.traceId);
-					if (traceId) state.terminalTraceId = traceId;
-					else if (!state.terminalTraceId) state.terminalTraceId = `trace-${Date.now().toString(36)}`;
-				}
+		case 'openClaude':
+			{
+				const requestedInstanceId = resolveTerminalInstanceId(state, message.instanceId) ?? `term-${Date.now().toString(36)}`;
+				const traceId = normalizeTraceId(message.traceId) ?? `trace-${Date.now().toString(36)}`;
+				const runtime = getTerminalRuntime(state, requestedInstanceId, true);
+				if (!runtime) return;
+				setActiveTerminalInstance(state, runtime.instanceId);
+				runtime.terminalTraceId = traceId;
+				resetTerminalSession(runtime, 'openClaude');
 				ensureTerminalPty(window, state, {
 					cwd: message.folderPath || state.workspaceRoot || process.cwd(),
-					instanceId: state.terminalInstanceId ?? undefined,
-					traceId: state.terminalTraceId ?? undefined,
+					instanceId: runtime.instanceId,
+					traceId,
 				});
-				runTerminalCommand(window, state, buildClaudeCommand(state.claudeLaunchCommand));
-				state.activeTerminalSessionId = null;
+				runtime.terminalSessionSource = 'launch';
+				runtime.activeTerminalSessionId = null;
+				runTerminalCommand(window, state, runtime, buildClaudeLaunchCommand(state.claudeLaunchCommand));
+			}
 			refreshAndPublish(window, state, false);
 			return;
 		default:
