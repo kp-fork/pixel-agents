@@ -258,7 +258,9 @@ export function resolveZigPtyBinaryPath(): string | null {
 	const initCwd = process.env['INIT_CWD']?.trim();
 
 	const candidates = [
+		workspaceEnv ? path.join(workspaceEnv, 'bin', 'pixel-agents-pty') : '',
 		workspaceEnv ? path.join(workspaceEnv, 'apps', 'desktop', 'bin', 'pixel-agents-pty') : '',
+		initCwd ? path.join(initCwd, 'bin', 'pixel-agents-pty') : '',
 		initCwd ? path.join(initCwd, 'apps', 'desktop', 'bin', 'pixel-agents-pty') : '',
 		path.resolve(moduleDir, '..', '..', 'bin', 'pixel-agents-pty'),
 		path.resolve(moduleDir, '..', '..', '..', 'bin', 'pixel-agents-pty'),

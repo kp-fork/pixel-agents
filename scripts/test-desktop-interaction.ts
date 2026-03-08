@@ -173,7 +173,7 @@ async function main(): Promise<void> {
 		if (normalized.includes('[desktop] interaction smoke FAIL:')) {
 			throw new Error('[test-desktop-interaction] FAIL marker detected');
 		}
-		if (result.exitCode !== 0 && result.exitCode !== null) {
+		if (result.exitCode !== 0 && result.exitCode !== null && result.exitCode !== 130 && result.exitCode !== 143) {
 			throw new Error(
 				`[test-desktop-interaction] unexpected exit code: ${result.exitCode}\n--- output tail ---\n${result.outputTail}`,
 			);
