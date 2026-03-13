@@ -38,6 +38,9 @@
   --pixel-hover-card-fg: rgba(236, 240, 255, 0.96);
   --pixel-hover-card-dim: rgba(196, 204, 236, 0.84);
   --pixel-history-chip-bg: rgba(18, 18, 26, 0.72);
+  /* Keep bubble text tied to hover-card palette so packs can override once. */
+  --pixel-bubble-fg: var(--pixel-hover-card-fg);
+  --pixel-bubble-dim: var(--pixel-hover-card-dim);
 
   /* Hints & confirmations */
   --pixel-hint-bg: #3278c8;

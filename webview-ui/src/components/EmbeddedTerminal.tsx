@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { vscode } from '../vscodeApi.js'
 import { asTypedHostMessage } from '../adapter/hostMessage.js'
+import {
+  createImeEnterGuardState,
+  markCompositionEnd,
+  markCompositionStart,
+  shouldConsumeImeTailEnter,
+} from './imeEnterGuard.js'
 
 interface EmbeddedTerminalProps {
   instanceId: string
@@ -73,6 +79,7 @@ export function EmbeddedTerminal({
   const traceIdRef = useRef<string | null>(traceId ?? null)
   const contractProbeRef = useRef<boolean>(Boolean(contractProbe))
   const instanceIdRef = useRef<string>(instanceId)
+  const imeEnterGuardRef = useRef(createImeEnterGuardState())
   const [readyText, setReadyText] = useState('Initializing...')
 
   useEffect(() => {
@@ -214,7 +221,26 @@ export function EmbeddedTerminal({
       const fitAddon = new ghosttyModule.FitAddon()
       term.loadAddon(fitAddon)
       term.open(hostRef.current)
+      hostRef.current.style.caretColor = 'transparent'
+      const onCompositionStart = () => {
+        markCompositionStart(imeEnterGuardRef.current)
+      }
+      const onCompositionEnd = () => {
+        markCompositionEnd(imeEnterGuardRef.current)
+      }
+      hostRef.current.addEventListener('compositionstart', onCompositionStart, true)
+      hostRef.current.addEventListener('compositionend', onCompositionEnd, true)
       term.attachCustomKeyEventHandler?.((event) => {
+        const keyCode = (event as KeyboardEvent & { keyCode?: number }).keyCode
+        const isComposing = imeEnterGuardRef.current.composing || event.isComposing || keyCode === 229
+        if (shouldConsumeImeTailEnter(imeEnterGuardRef.current, event.key, isComposing)) {
+          // Some IMEs emit a trailing Enter right after commit.
+          // Ignore only this first keydown in a short tail window.
+          event.preventDefault()
+          event.stopPropagation()
+          return true
+        }
+        if (isComposing) return false
         if (event.key !== 'Tab') return false
         event.preventDefault()
         event.stopPropagation()
@@ -310,6 +336,8 @@ export function EmbeddedTerminal({
       disposeRef.current = () => {
         dataDisposable.dispose()
         resizeDisposable.dispose()
+        hostRef.current?.removeEventListener('compositionstart', onCompositionStart, true)
+        hostRef.current?.removeEventListener('compositionend', onCompositionEnd, true)
         window.removeEventListener('message', onMessage)
         window.removeEventListener(DESKTOP_TERMINAL_EVENT, onDesktopTerminalEvent as EventListener)
         try {

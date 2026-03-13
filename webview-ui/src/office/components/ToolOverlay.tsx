@@ -109,7 +109,7 @@ export function ToolOverlay({
                 border: '1px solid rgba(255, 255, 255, 0.22)',
                 padding: '2px 6px',
                 lineHeight: 1.25,
-                color: 'var(--pixel-text-dim)',
+                color: 'var(--pixel-bubble-dim)',
                 fontSize: 'var(--pixel-font-md)',
                 minWidth: 170,
                 maxWidth: 210,
@@ -122,7 +122,7 @@ export function ToolOverlay({
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   fontSize: 'var(--pixel-font-md)',
-                  color: 'var(--vscode-foreground)',
+                  color: 'var(--pixel-bubble-fg)',
                   fontWeight: 'var(--pixel-font-weight)',
                   opacity: 1,
                 }}
@@ -135,7 +135,7 @@ export function ToolOverlay({
                   fontSize: 'var(--pixel-font-xxs)',
                   fontWeight: 'var(--pixel-font-weight)',
                   letterSpacing: 'var(--pixel-letter-spacing)',
-                  color: 'var(--vscode-foreground)',
+                  color: 'var(--pixel-bubble-dim)',
                   fontFamily: 'var(--vscode-font-family)',
                 }}
               >
@@ -225,7 +225,7 @@ export function ToolOverlay({
                   style={{
                     fontSize: isSub ? 'var(--pixel-font-sm)' : 'var(--pixel-font-md)',
                     fontStyle: isSub ? 'italic' : undefined,
-                    color: 'var(--vscode-foreground)',
+                    color: 'var(--pixel-bubble-fg)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     display: 'block',
