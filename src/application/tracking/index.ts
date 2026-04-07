@@ -1,35 +1,14 @@
 export {
-	buildBackfillCandidates,
-	compareCandidatesByPriority,
-	createCandidateSession,
-	withRetry,
-	type BackfillScanOptions,
-	type CandidateSession,
-} from './scanner.js';
-
-export {
-	createCandidateQueue,
 	type CandidateQueue,
 	type CandidateQueueDeferOptions,
+	createCandidateQueue,
 } from './candidateQueue.js';
-
 export {
-	createSessionRegistry,
-	type SessionBinding,
-	type SessionRegistry,
-	type SessionRegistrySnapshot,
-} from './sessionRegistry.js';
-
-export {
-	matchTerminalForCandidate,
-	scoreTerminalMatch,
-	scoreTerminalMatchWithBreakdown,
-	type TerminalMatcherOptions,
-	type TerminalMatchResult,
-	type TerminalMatchScoreBreakdown,
-	type TerminalMatchScoreInput,
-} from './matcher.js';
-
+	buildTrackingDebugSnapshot,
+	serializeTrackingDebugSnapshot,
+	type TrackingDebugSnapshot,
+	type TrackingDebugSnapshotInput,
+} from './debug.js';
 export {
 	createTrackingEvent,
 	createTrackingTelemetryBuffer,
@@ -41,10 +20,26 @@ export {
 	type TrackingEventInput,
 	type TrackingTelemetryBuffer,
 } from './events.js';
-
 export {
-	buildTrackingDebugSnapshot,
-	serializeTrackingDebugSnapshot,
-	type TrackingDebugSnapshot,
-	type TrackingDebugSnapshotInput,
-} from './debug.js';
+	matchTerminalForCandidate,
+	scoreTerminalMatch,
+	scoreTerminalMatchWithBreakdown,
+	type TerminalMatcherOptions,
+	type TerminalMatchResult,
+	type TerminalMatchScoreBreakdown,
+	type TerminalMatchScoreInput,
+} from './matcher.js';
+export {
+	type BackfillScanOptions,
+	buildBackfillCandidates,
+	type CandidateSession,
+	compareCandidatesByPriority,
+	createCandidateSession,
+	withRetry,
+} from './scanner.js';
+export {
+	createSessionRegistry,
+	type SessionBinding,
+	type SessionRegistry,
+	type SessionRegistrySnapshot,
+} from './sessionRegistry.js';

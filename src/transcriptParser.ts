@@ -1,20 +1,21 @@
 import * as path from 'path';
 import type * as vscode from 'vscode';
-import type { AgentId, AgentState } from './types.js';
+
 import {
-	cancelWaitingTimer,
-	startWaitingTimer,
-	clearAgentActivity,
-	startPermissionTimer,
-	cancelPermissionTimer,
-} from './timerManager.js';
-import {
-	TOOL_DONE_DELAY_MS,
-	TEXT_IDLE_DELAY_MS,
 	BASH_COMMAND_DISPLAY_MAX_LENGTH,
 	TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
+	TEXT_IDLE_DELAY_MS,
+	TOOL_DONE_DELAY_MS,
 } from './constants.js';
 import { postToWebview } from './contracts/postMessage.js';
+import {
+	cancelPermissionTimer,
+	cancelWaitingTimer,
+	clearAgentActivity,
+	startPermissionTimer,
+	startWaitingTimer,
+} from './timerManager.js';
+import type { AgentId, AgentState } from './types.js';
 
 export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'AskUserQuestion']);
 
@@ -194,7 +195,7 @@ function processProgressRecord(
 	agentId: AgentId,
 	record: Record<string, unknown>,
 	agents: Map<AgentId, AgentState>,
-	waitingTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
+	_waitingTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
 	webview: vscode.Webview | undefined,
 ): void {

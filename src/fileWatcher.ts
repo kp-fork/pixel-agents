@@ -1,12 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { AgentId, AgentState } from './types.js';
-import { cancelWaitingTimer, cancelPermissionTimer, clearAgentActivity } from './timerManager.js';
-import { processTranscriptLine } from './transcriptParser.js';
+
+import { decideJsonlRouting } from './application/tracking/jsonlRouting.js';
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS, TERMINAL_NAME_PREFIX } from './constants.js';
 import { postToWebview } from './contracts/postMessage.js';
-import { decideJsonlRouting } from './application/tracking/jsonlRouting.js';
+import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
+import { processTranscriptLine } from './transcriptParser.js';
+import type { AgentId, AgentState } from './types.js';
 
 export function startFileWatching(
 	agentId: AgentId,

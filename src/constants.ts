@@ -28,6 +28,8 @@ export const CHAR_COUNT = 6;
 export const LAYOUT_FILE_DIR = '.pixel-agents';
 export const LAYOUT_FILE_NAME = 'layout.json';
 export const LAYOUT_FILE_POLL_INTERVAL_MS = 2000;
+export const LAYOUT_REVISION_KEY = 'layoutRevision';
+export const CONFIG_FILE_NAME = 'config.json';
 
 // ── Settings Persistence ────────────────────────────────────
 export const GLOBAL_KEY_SOUND_ENABLED = 'pixel-agents.soundEnabled';

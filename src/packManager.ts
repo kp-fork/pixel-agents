@@ -1,7 +1,8 @@
+import { execFile } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { execFile } from 'child_process';
+
 import { CHAR_COUNT } from './constants.js';
 
 export interface PackManifest {
@@ -186,7 +187,7 @@ function installPackFromExtracted(
 	manifest: PackManifest,
 	layoutPath: string,
 	catalogPath: string,
-	layout: Record<string, unknown>,
+	_layout: Record<string, unknown>,
 	catalog: { assets?: Array<{ file?: string }> },
 	characterSpritePaths: string[] | null,
 ): string {

@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
-import { PixelAgentsViewProvider } from './PixelAgentsViewProvider.js';
+
 import {
-	VIEW_ID,
-	COMMAND_SHOW_PANEL,
-	COMMAND_OPEN_IN_EDITOR,
 	COMMAND_EXPORT_DEFAULT_LAYOUT,
+	COMMAND_OPEN_IN_EDITOR,
+	COMMAND_SHOW_PANEL,
 	COMMAND_SHOW_RUNTIME_INFO,
+	VIEW_ID,
 } from './constants.js';
+import { PixelAgentsViewProvider } from './PixelAgentsViewProvider.js';
 
 let providerInstance: PixelAgentsViewProvider | undefined;
 

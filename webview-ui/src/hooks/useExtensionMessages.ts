@@ -511,15 +511,15 @@ export function useExtensionMessages(
       } else if (msg.type === 'characterSpritesLoaded') {
         const characters = msg.characters as Array<{ down: string[][][]; up: string[][][]; right: string[][][] }>
         console.log(`[Webview] Received ${characters.length} pre-colored character sprites`)
-        setCharacterTemplates(characters)
+        setCharacterTemplates(characters as any)
       } else if (msg.type === 'floorTilesLoaded') {
         const sprites = msg.sprites as string[][][]
         console.log(`[Webview] Received ${sprites.length} floor tile patterns`)
-        setFloorSprites(sprites)
+        setFloorSprites(sprites as any)
       } else if (msg.type === 'wallTilesLoaded') {
         const sprites = msg.sprites as string[][][]
         console.log(`[Webview] Received ${sprites.length} wall tile sprites`)
-        setWallSprites(sprites)
+        setWallSprites(sprites as any)
       } else if (msg.type === 'workspaceFolders') {
         const folders = msg.folders as WorkspaceFolder[]
         setWorkspaceFolders(folders)

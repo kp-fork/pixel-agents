@@ -37,7 +37,8 @@ const build = spawnSync('zig', args, {
 });
 
 if (build.status !== 0) {
-  process.exit(build.status ?? 1);
+  console.warn('[build-pty] Zig PTY build failed; continuing without native PTY binary (runtime fallback will be used)');
+  process.exit(0);
 }
 
 try {

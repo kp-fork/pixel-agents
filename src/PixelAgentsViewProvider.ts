@@ -2,35 +2,36 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { AgentId, AgentState } from './types.js';
-import type { AgentRuntimeStatus, WebviewToExtensionMessage } from './contracts/messages.js';
-import { postToWebview } from './contracts/postMessage.js';
+
 import {
+	getProjectDirPath,
 	launchNewTerminal,
 	launchTerminalForSession,
+	persistAgents,
 	removeAgent,
 	restoreAgents,
-	persistAgents,
 	sendExistingAgents,
 	sendLayout,
-	getProjectDirPath,
 } from './agentManager.js';
-import { ensureProjectScan } from './fileWatcher.js';
-import { loadFurnitureAssets, sendAssetsToWebview, loadFloorTiles, sendFloorTilesToWebview, loadWallTiles, sendWallTilesToWebview, loadCharacterSprites, sendCharacterSpritesToWebview, loadDefaultLayout } from './assetLoader.js';
+import { loadCharacterSprites, loadDefaultLayout,loadFloorTiles, loadFurnitureAssets, loadWallTiles, sendAssetsToWebview, sendCharacterSpritesToWebview, sendFloorTilesToWebview, sendWallTilesToWebview } from './assetLoader.js';
 import {
-	WORKSPACE_KEY_AGENT_SEATS,
-	GLOBAL_KEY_SOUND_ENABLED,
-	GLOBAL_KEY_SPEECH_BUBBLES_ENABLED,
 	GLOBAL_KEY_ALWAYS_STATUS_BUBBLES_ENABLED,
 	GLOBAL_KEY_EVENT_BUBBLES_ENABLED,
+	GLOBAL_KEY_SOUND_ENABLED,
+	GLOBAL_KEY_SPEECH_BUBBLES_ENABLED,
 	HISTORY_SESSIONS_ENABLED_DEFAULT,
 	HISTORY_SESSIONS_LOOKBACK_DAYS_DEFAULT,
 	HISTORY_SESSIONS_MAX_VISIBLE_DEFAULT,
+	WORKSPACE_KEY_AGENT_SEATS,
 } from './constants.js';
-import { writeLayoutToFile, readLayoutFromFile, watchLayoutFile } from './layoutPersistence.js';
-import type { LayoutWatcher } from './layoutPersistence.js';
+import type { AgentRuntimeStatus, WebviewToExtensionMessage } from './contracts/messages.js';
+import { postToWebview } from './contracts/postMessage.js';
+import { ensureProjectScan } from './fileWatcher.js';
 import { canResumeHistorySession, collectHistorySessions } from './historySessions.js';
+import type { LayoutWatcher } from './layoutPersistence.js';
+import { readLayoutFromFile, watchLayoutFile,writeLayoutToFile } from './layoutPersistence.js';
 import { applyPackDirectory, applyPackZip, exportPackZip, getInstalledPackRoot } from './packManager.js';
+import type { AgentId, AgentState } from './types.js';
 
 export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 	nextTerminalIndex = { current: 1 };

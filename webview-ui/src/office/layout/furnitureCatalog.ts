@@ -242,6 +242,12 @@ export function buildDynamicCatalog(assets: LoadedAssetData): boolean {
   return true
 }
 
+export function getOrientationInGroup(type: string): string | undefined {
+  const group = rotationGroups.get(type)
+  if (!group) return undefined
+  return Object.entries(group.members).find(([, id]) => id === type)?.[0]
+}
+
 export function getCatalogEntry(type: string): CatalogEntryWithCategory | undefined {
   // Check internal catalog first (includes all variants, e.g., non-front rotations)
   if (internalCatalog) {

@@ -7,21 +7,22 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
-import * as vscode from 'vscode'
 import { PNG } from 'pngjs'
+import * as vscode from 'vscode'
+
 import {
-  PNG_ALPHA_THRESHOLD,
-  WALL_PIECE_WIDTH,
-  WALL_PIECE_HEIGHT,
-  WALL_GRID_COLS,
-  WALL_BITMASK_COUNT,
+  CHAR_COUNT,
+  CHAR_FRAME_H,
+  CHAR_FRAME_W,
+  CHAR_FRAMES_PER_ROW,
+  CHARACTER_DIRECTIONS,
   FLOOR_PATTERN_COUNT,
   FLOOR_TILE_SIZE,
-  CHARACTER_DIRECTIONS,
-  CHAR_FRAME_W,
-  CHAR_FRAME_H,
-  CHAR_FRAMES_PER_ROW,
-  CHAR_COUNT,
+  PNG_ALPHA_THRESHOLD,
+  WALL_BITMASK_COUNT,
+  WALL_GRID_COLS,
+  WALL_PIECE_HEIGHT,
+  WALL_PIECE_WIDTH,
 } from './constants.js'
 import { postToWebview } from './contracts/postMessage.js'
 

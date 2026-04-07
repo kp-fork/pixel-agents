@@ -1,7 +1,8 @@
 import type * as vscode from 'vscode';
-import type { AgentId, AgentState } from './types.js';
+
 import { PERMISSION_TIMER_DELAY_MS } from './constants.js';
 import { postToWebview } from './contracts/postMessage.js';
+import type { AgentId, AgentState } from './types.js';
 
 function isPermissionExempt(
 	permissionExemptTools: Set<string>,

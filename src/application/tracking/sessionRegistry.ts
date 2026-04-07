@@ -1,5 +1,5 @@
-import type { SessionRegistryPort } from '../ports.js';
 import type { SessionRecord, SessionStage } from '../../contracts/session.js';
+import type { SessionRegistryPort } from '../ports.js';
 
 export interface SessionBinding {
 	jsonlPath: string;

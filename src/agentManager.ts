@@ -1,14 +1,15 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import * as os from 'os';
+import * as path from 'path';
 import * as vscode from 'vscode';
-import type { AgentId, AgentState, PersistedAgent } from './types.js';
-import { cancelWaitingTimer, cancelPermissionTimer } from './timerManager.js';
-import { startFileWatching, readNewLines, ensureProjectScan } from './fileWatcher.js';
-import { JSONL_POLL_INTERVAL_MS, TERMINAL_NAME_PREFIX, WORKSPACE_KEY_AGENTS, WORKSPACE_KEY_AGENT_SEATS } from './constants.js';
-import { migrateAndLoadLayout } from './layoutPersistence.js';
+
+import { JSONL_POLL_INTERVAL_MS, TERMINAL_NAME_PREFIX, WORKSPACE_KEY_AGENT_SEATS,WORKSPACE_KEY_AGENTS } from './constants.js';
 import { postToWebview } from './contracts/postMessage.js';
+import { ensureProjectScan,readNewLines, startFileWatching } from './fileWatcher.js';
+import { migrateAndLoadLayout } from './layoutPersistence.js';
+import { cancelPermissionTimer,cancelWaitingTimer } from './timerManager.js';
 import { formatToolStatus } from './transcriptParser.js';
+import type { AgentId, AgentState, PersistedAgent } from './types.js';
 
 function normalizeWorkspacePath(value: string): string {
 	const trimmed = value.trim();
@@ -183,7 +184,7 @@ export function launchNewTerminal(
 	pollingTimers: Map<AgentId, ReturnType<typeof setInterval>>,
 	waitingTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
 	permissionTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
-	jsonlPollTimers: Map<AgentId, ReturnType<typeof setInterval>>,
+	_jsonlPollTimers: Map<AgentId, ReturnType<typeof setInterval>>,
 	projectScanTimerRef: { current: ReturnType<typeof setInterval> | null },
 	webview: vscode.Webview | undefined,
 	persistAgents: () => void,
@@ -576,9 +577,9 @@ export function sendLayout(
 	defaultLayout?: Record<string, unknown> | null,
 ): void {
 	if (!webview) return;
-	const layout = migrateAndLoadLayout(context, defaultLayout);
+	const layoutResult = migrateAndLoadLayout(context, defaultLayout);
 	postToWebview(webview, {
 		type: 'layoutLoaded',
-		layout,
+		layout: layoutResult?.layout ?? null,
 	});
 }

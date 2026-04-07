@@ -31,6 +31,9 @@ export const MATRIX_TRAIL_OVERLAY_ALPHA = 0.6
 export const MATRIX_TRAIL_EMPTY_ALPHA = 0.5
 export const MATRIX_TRAIL_MID_THRESHOLD = 0.33
 export const MATRIX_TRAIL_DIM_THRESHOLD = 0.66
+export const matrixGreenBright = (alpha: number) => `rgba(180, 255, 180, ${alpha})`
+export const matrixGreenMid = (alpha: number) => `rgba(80, 255, 120, ${alpha})`
+export const matrixGreenDim = (alpha: number) => `rgba(20, 180, 60, ${alpha})`
 
 // ── Rendering ────────────────────────────────────────────────
 export const CHARACTER_SITTING_OFFSET_PX = 6
@@ -50,6 +53,8 @@ export const BUBBLE_FADE_DURATION_SEC = 0.5
 export const BUBBLE_SITTING_OFFSET_PX = 10
 export const BUBBLE_VERTICAL_OFFSET_PX = 24
 export const FALLBACK_FLOOR_COLOR = '#808080'
+export const CANVAS_ERROR_TILE_COLOR = '#ff00ff'
+export const WALL_COLOR = '#2a2f38'
 
 // ── Rendering - Overlay Colors (canvas, not CSS) ─────────────
 export const SEAT_OWN_COLOR = 'rgba(0, 127, 212, 0.35)'
@@ -80,6 +85,8 @@ export const ZOOM_LEVEL_HIDE_DELAY_MS = 2000
 export const ZOOM_LEVEL_FADE_DURATION_SEC = 0.5
 export const ZOOM_SCROLL_THRESHOLD = 50
 export const PAN_MARGIN_FRACTION = 0.25
+export const WHATS_NEW_AUTO_CLOSE_MS = 4000
+export const WHATS_NEW_FADE_MS = 300
 
 // ── Editor ───────────────────────────────────────────────────
 export const UNDO_STACK_MAX_SIZE = 50
@@ -95,6 +102,12 @@ export const NOTIFICATION_NOTE_1_START_SEC = 0
 export const NOTIFICATION_NOTE_2_START_SEC = 0.1
 export const NOTIFICATION_NOTE_DURATION_SEC = 0.18
 export const NOTIFICATION_VOLUME = 0.14
+export const PERMISSION_NOTE_1_HZ = 880
+export const PERMISSION_NOTE_2_HZ = 659.25
+export const PERMISSION_NOTE_1_START_SEC = 0
+export const PERMISSION_NOTE_2_START_SEC = 0.08
+export const PERMISSION_NOTE_DURATION_SEC = 0.16
+export const PERMISSION_VOLUME = 0.12
 
 // ── Game Logic ───────────────────────────────────────────────
 export const MAX_DELTA_TIME_SEC = 0.1

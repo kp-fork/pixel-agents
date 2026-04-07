@@ -1,6 +1,6 @@
 import {
-	compareCandidatesByPriority,
 	type CandidateSession,
+	compareCandidatesByPriority,
 	withRetry,
 } from './scanner.js';
 

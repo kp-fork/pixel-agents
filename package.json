@@ -2,7 +2,7 @@
   "name": "pixel-agents",
   "displayName": "Pixel Agents",
   "description": "Pixel art office where your Claude Code agents come to life as animated characters",
-  "version": "1.0.2",
+  "version": "1.2.0",
   "publisher": "pablodelucca",
   "repository": {
     "type": "git",
@@ -11,7 +11,7 @@
   "icon": "icon.png",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.107.0"
+    "vscode": "^1.105.0"
   },
   "categories": [
     "Other"
@@ -116,11 +116,19 @@
     "install:vsix": "code --install-extension pixel-agents-local.vsix --force",
     "reinstall:vsix": "npm run package:vsix && npm run install:vsix",
     "build:pack": "node scripts/build-pack.js",
-    "check-types": "npm-run-all check-types:*",
+    "check-types": "npm-run-all check-types:root check-types:packages check-types:desktop check-types:view-harness",
     "check-types:root": "tsc --noEmit --project tsconfig.json",
     "check-types:packages": "tsc --noEmit --project tsconfig.packages.json",
+    "check-types:server": "tsc --noEmit -p server/tsconfig.test.json",
     "check-types:desktop": "npm run setup:desktop && npm --prefix apps/desktop run app:desktop:check-types",
     "check-types:view-harness": "tsc --noEmit --project apps/view-harness/tsconfig.json",
+    "prepare": "husky",
+    "format": "prettier --write \"src/**/*.ts\" \"server/**/*.ts\" \"shared/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"server/**/*.ts\" \"shared/**/*.ts\" \"webview-ui/src/**/*.{ts,tsx,css}\" \"*.{js,mjs}\" \"webview-ui/*.{js,ts}\"",
+    "lint": "eslint src server shared",
+    "lint:fix": "eslint src server shared --fix",
+    "lint:webview": "cd webview-ui && eslint .",
+    "lint:webview:fix": "cd webview-ui && eslint . --fix",
     "test:routing": "tsx scripts/test-jsonl-routing.ts",
     "test:team-tracking": "tsx scripts/test-team-tracking.ts",
     "test:overlay-state": "tsx scripts/test-tool-overlay-state.ts",
@@ -135,26 +143,47 @@
     "test:desktop": "npm-run-all test:desktop-pty test:desktop-runtime test:desktop-trace test:desktop-interaction",
     "test:flow": "tsx scripts/verify-agent-flow.ts",
     "test:flow:batch": "tsx scripts/verify-agent-flow-batch.ts --limit 5",
+    "test:webview": "cd webview-ui && npm test",
+    "test:server": "cd server && npm test",
+    "test": "npm run test:webview && npm run test:server",
     "test:runtime": "npm-run-all test:routing test:team-tracking test:overlay-state test:bubble-settings test:history-sessions test:ime-enter-guard test:flow",
     "quality:lint-budget": "node scripts/check-lint-warning-budget.js",
     "verify:desktop": "npm-run-all check-types:desktop test:desktop test:desktop-contract-loop",
     "verify:ops": "npm-run-all check-types test:runtime quality:lint-budget build",
     "verify:ops:desktop-gate": "npm-run-all verify:ops test:desktop-interaction",
     "verify:ops:vsix": "npm run verify:ops && npm run package:vsix",
-    "lint": "eslint src",
-    "import-tileset": "tsx scripts/import-tileset-cli.ts"
+    "import-tileset": "tsx scripts/import-tileset-cli.ts",
+    "e2e": "playwright test --config e2e/playwright.config.ts",
+    "e2e:debug": "playwright test --config e2e/playwright.config.ts --debug",
+    "knip": "knip"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.74.0",
-    "@types/node": "22.x",
+    "@playwright/test": "^1.58.2",
+    "@types/node": "25.x",
     "@types/pngjs": "^6.0.5",
     "@types/vscode": "^1.107.0",
-    "esbuild": "^0.27.2",
-    "eslint": "^9.39.2",
+    "@anthropic-ai/sdk": "^0.74.0",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.28.0",
+    "eslint": "^10.0.3",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "husky": "^9.1.7",
+    "knip": "^6.3.0",
+    "lint-staged": "^16.3.2",
     "npm-run-all": "^4.1.5",
     "pngjs": "^7.0.0",
+    "prettier": "^3.8.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.54.0"
+  },
+  "lint-staged": {
+    "src/**/*.ts": "eslint --fix",
+    "server/**/*.ts": "eslint --fix",
+    "shared/**/*.ts": "eslint --fix",
+    "webview-ui/src/**/*.{ts,tsx}": "eslint --fix",
+    "*.{ts,tsx,js,mjs,css,json,md}": "prettier --write",
+    "webview-ui/**/*.{ts,tsx,js,css,json}": "prettier --write"
   }
 }

@@ -1,5 +1,5 @@
-import type { SessionRecord, TrackingEvent } from '../contracts/session.js';
 import type { ExtensionToWebviewMessage } from '../contracts/messages.js';
+import type { SessionRecord, TrackingEvent } from '../contracts/session.js';
 
 export interface TerminalRef {
 	id: string;

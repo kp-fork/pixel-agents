@@ -123,6 +123,8 @@ export interface FurnitureCatalogEntry {
   backgroundTiles?: number
   /** Whether this item can be placed on wall tiles */
   canPlaceOnWalls?: boolean
+  /** Whether left orientation should reuse the side sprite with mirroring */
+  mirrorSide?: boolean
 }
 
 export interface PlacedFurniture {
@@ -136,6 +138,7 @@ export interface PlacedFurniture {
 
 export interface OfficeLayout {
   version: 1
+  layoutRevision?: number
   cols: number
   rows: number
   tiles: TileType[]

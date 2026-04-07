@@ -1,4 +1,5 @@
 import type * as vscode from 'vscode';
+
 import type { ExtensionToWebviewMessage } from './messages.js';
 
 export function postToWebview(
