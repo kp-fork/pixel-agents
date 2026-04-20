@@ -1,9 +1,11 @@
 import { createDefaultHostBridge } from './adapter/vscodeBridge.js'
 
-export const hostBridge = createDefaultHostBridge()
+export function getHostBridge() {
+  return createDefaultHostBridge()
+}
 
 export const vscode = {
   postMessage(message: unknown): void {
-    hostBridge.send(message)
+    getHostBridge().send(message)
   },
 }

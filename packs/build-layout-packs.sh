@@ -5,8 +5,15 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LAYOUT_DIR="$ROOT_DIR/docs/layouts"
 PACK_DIR="$ROOT_DIR/packs"
 SOURCES_DIR="$PACK_DIR/sources"
+DEFAULT_PACK_DIR="$SOURCES_DIR/default"
+DEFAULT_FURNITURE_DIR="$DEFAULT_PACK_DIR/assets/furniture"
 
 mkdir -p "$SOURCES_DIR"
+
+if [[ ! -f "$DEFAULT_FURNITURE_DIR/furniture-catalog.json" ]]; then
+  echo "Default furniture catalog not found at $DEFAULT_FURNITURE_DIR/furniture-catalog.json"
+  exit 1
+fi
 
 shopt -s nullglob
 layout_files=("$LAYOUT_DIR"/*.json)
@@ -29,15 +36,9 @@ for layout_path in "${layout_files[@]}"; do
   rm -rf "$pack_source_dir"
   rm -f "$pack_zip_path"
 
-  mkdir -p "$pack_source_dir/layouts" "$pack_source_dir/assets/furniture/custom"
+  mkdir -p "$pack_source_dir/layouts" "$pack_source_dir/assets/furniture"
   cp "$layout_path" "$pack_source_dir/layouts/default-layout.json"
-
-  cat > "$pack_source_dir/assets/furniture/furniture-catalog.json" <<CATALOG
-{
-  "generatedAt": "$created_at",
-  "assets": []
-}
-CATALOG
+  cp -R "$DEFAULT_FURNITURE_DIR"/. "$pack_source_dir/assets/furniture"
 
   cat > "$pack_source_dir/manifest.json" <<MANIFEST
 {

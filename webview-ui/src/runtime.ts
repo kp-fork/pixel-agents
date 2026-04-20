@@ -8,9 +8,17 @@
 
 declare function acquireVsCodeApi(): unknown;
 
-type Runtime = 'vscode' | 'browser';
+type Runtime = 'vscode' | 'desktop' | 'browser';
 // Future: 'cursor' | 'windsurf' | 'electron' | etc.
 
-const runtime: Runtime = typeof acquireVsCodeApi !== 'undefined' ? 'vscode' : 'browser';
+const host = globalThis as typeof globalThis & {
+  __electrobunSendToHost?: unknown;
+};
+
+const runtime: Runtime = typeof acquireVsCodeApi !== 'undefined'
+  ? 'vscode'
+  : typeof host.__electrobunSendToHost === 'function'
+    ? 'desktop'
+    : 'browser';
 
 export const isBrowserRuntime = runtime === 'browser';

@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
-import { BrowserWindow } from 'electrobun';
+import { execFile, spawn } from 'node:child_process';
+import { BrowserWindow, Utils } from 'electrobun';
 import pty from '@lydell/node-pty';
+import { PNG } from 'pngjs';
 import {
 	createZigPtyBridge,
 	resolveZigPtyBinaryPath,
@@ -11,17 +12,36 @@ import {
 } from './zigPtyBridge.js';
 import { canResumeHistorySession, collectHistorySessions } from '../../../../src/historySessions.js';
 import {
+	CHAR_COUNT,
+	CHAR_FRAME_H,
+	CHAR_FRAME_W,
+	CHAR_FRAMES_PER_ROW,
+	CHARACTER_DIRECTIONS,
+	FLOOR_PATTERN_COUNT,
+	FLOOR_TILE_SIZE,
 	HISTORY_SESSIONS_ENABLED_DEFAULT,
 	HISTORY_SESSIONS_LOOKBACK_DAYS_DEFAULT,
 	HISTORY_SESSIONS_MAX_VISIBLE_DEFAULT,
+	LAYOUT_REVISION_KEY,
+	PNG_ALPHA_THRESHOLD,
+	WALL_BITMASK_COUNT,
+	WALL_GRID_COLS,
+	WALL_PIECE_HEIGHT,
+	WALL_PIECE_WIDTH,
 } from '../../../../src/constants.js';
 import type {
+	AgentSeatAssignment,
 	AgentRuntimeStatus,
+	CharacterDirectionSprites,
 	ExistingAgentMeta,
+	FurnitureCatalogAsset,
 	ExtensionToWebviewMessage,
 	HistorySessionSummary,
 	WebviewToExtensionMessage,
 } from '../../../../src/contracts/messages.js';
+import type { LayoutWatcher } from '../../../../src/layoutPersistence.js';
+import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from '../../../../src/layoutPersistence.js';
+import { applyPackDirectory, applyPackZip, exportPackZip, getInstalledPackRoot } from '../../../../src/packManager.js';
 
 const LIVE_SESSION_LOOKBACK_HOURS = 12;
 const LIVE_SESSION_MAX_VISIBLE = 8;
@@ -41,6 +61,8 @@ const TRACE_CONTRACT_ENV = 'PIXEL_AGENTS_TRACE_CONTRACT';
 const TRACE_SMOKE_MARKER_PREFIX = '__PA_TRACE_ACK__';
 const INTERACTION_SMOKE_ENV = 'PIXEL_AGENTS_INTERACTION_SMOKE';
 const DESKTOP_TERMINAL_EVENT = 'pixel-agents:terminal';
+const DESKTOP_STATE_DIR = path.join(os.homedir(), '.pixel-agents');
+const DESKTOP_STATE_FILE = path.join(DESKTOP_STATE_DIR, 'desktop-state.json');
 
 type TerminalLifecycleState = 'stopped' | 'starting' | 'running' | 'closing';
 type TerminalSessionSource = 'launch' | 'history' | null;
@@ -79,6 +101,10 @@ interface DesktopSettingsState {
 	historySessionsEnabled: boolean;
 }
 
+interface DesktopPersistedState {
+	agentSeats: Record<string, AgentSeatAssignment>;
+}
+
 interface SessionRuntimeSnapshot {
 	status: AgentRuntimeStatus;
 	toolStatus: string | null;
@@ -90,7 +116,9 @@ interface DesktopHostState {
 	projectDir: string | null;
 	workspaceFolderName: string;
 	settingsFilePath: string | null;
+	persistedStateFilePath: string;
 	agents: Map<string, DesktopAgent>;
+	agentSeats: Record<string, AgentSeatAssignment>;
 	historySessions: HistorySessionSummary[];
 	settings: DesktopSettingsState;
 	historyLookbackDays: number;
@@ -110,6 +138,9 @@ interface DesktopHostState {
 	interactionSmokeMode: boolean;
 	interactionSmokeStarted: boolean;
 	interactionSmokePassed: boolean;
+	defaultLayout: Record<string, unknown> | null;
+	layoutWatcher: LayoutWatcher | null;
+	assetsBootstrapPromise: Promise<void> | null;
 	refreshTimer: ReturnType<typeof setInterval> | null;
 	didInitialize: boolean;
 	isShuttingDown: boolean;
@@ -160,6 +191,357 @@ function parseHostMessage(event: unknown): WebviewToExtensionMessage | null {
 	if (!candidate || typeof candidate !== 'object') return null;
 	if (typeof (candidate as { type?: unknown }).type !== 'string') return null;
 	return candidate as WebviewToExtensionMessage;
+}
+
+function bundleAppRoot(): string | null {
+	const candidates = [
+		path.resolve(process.cwd(), '../Resources/app'),
+		path.resolve(import.meta.dir, '../../build/dev-macos-arm64/Pixel Agents Desktop-dev.app/Contents/Resources/app'),
+	];
+	for (const candidate of candidates) {
+		if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+			return candidate;
+		}
+	}
+	return null;
+}
+
+function bundledVisualAssetsRoot(): string | null {
+	const appRoot = bundleAppRoot();
+	if (!appRoot) return null;
+	const assetsRoot = path.join(appRoot, 'assets');
+	return fs.existsSync(assetsRoot) ? appRoot : null;
+}
+
+function bundledDefaultPackRoot(): string | null {
+	const appRoot = bundleAppRoot();
+	if (!appRoot) return null;
+	const packRoot = path.join(appRoot, 'assets', 'packs', 'default');
+	return fs.existsSync(path.join(packRoot, 'manifest.json')) ? packRoot : null;
+}
+
+function rgbaToHex(r: number, g: number, b: number): string {
+	return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
+}
+
+function readPngSprite(filePath: string): PNG {
+	return PNG.sync.read(fs.readFileSync(filePath));
+}
+
+function loadDefaultLayoutFromAssets(assetsRoot: string): Record<string, unknown> | null {
+	try {
+		const candidates = [
+			path.join(assetsRoot, 'assets', 'default-layout.json'),
+			path.join(assetsRoot, 'assets', 'default-layout-1.json'),
+		];
+		for (const filePath of candidates) {
+			if (!fs.existsSync(filePath)) continue;
+			return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Record<string, unknown>;
+		}
+	} catch (error) {
+		console.log(`[desktop] failed to load default layout: ${error}`);
+	}
+	return null;
+}
+
+function loadCharacterSpritesFromAssets(assetsRoot: string): CharacterDirectionSprites[] | null {
+	try {
+		const charDir = path.join(assetsRoot, 'assets', 'characters');
+		const characters: CharacterDirectionSprites[] = [];
+		for (let ci = 0; ci < CHAR_COUNT; ci += 1) {
+			const png = readPngSprite(path.join(charDir, `char_${ci}.png`));
+			const charData: CharacterDirectionSprites = { down: [], up: [], right: [] };
+			for (let dirIdx = 0; dirIdx < CHARACTER_DIRECTIONS.length; dirIdx += 1) {
+				const dir = CHARACTER_DIRECTIONS[dirIdx]!;
+				const rowOffsetY = dirIdx * CHAR_FRAME_H;
+				const frames: string[][][] = [];
+				for (let frame = 0; frame < CHAR_FRAMES_PER_ROW; frame += 1) {
+					const sprite: string[][] = [];
+					const frameOffsetX = frame * CHAR_FRAME_W;
+					for (let y = 0; y < CHAR_FRAME_H; y += 1) {
+						const row: string[] = [];
+						for (let x = 0; x < CHAR_FRAME_W; x += 1) {
+							const idx = (((rowOffsetY + y) * png.width) + (frameOffsetX + x)) * 4;
+							const alpha = png.data[idx + 3]!;
+							row.push(alpha < PNG_ALPHA_THRESHOLD ? '' : rgbaToHex(png.data[idx]!, png.data[idx + 1]!, png.data[idx + 2]!));
+						}
+						sprite.push(row);
+					}
+					frames.push(sprite);
+				}
+				charData[dir] = frames;
+			}
+			characters.push(charData);
+		}
+		return characters;
+	} catch {
+		return null;
+	}
+}
+
+function loadFloorTilesFromAssets(assetsRoot: string): string[][][] | null {
+	try {
+		const sprites: string[][][] = [];
+		const floorDir = path.join(assetsRoot, 'assets', 'floors');
+		const fileNames = fs.readdirSync(floorDir)
+			.filter((name) => /^floor_\d+\.png$/i.test(name))
+			.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+		for (const fileName of fileNames.slice(0, FLOOR_PATTERN_COUNT)) {
+			const png = readPngSprite(path.join(floorDir, fileName));
+			const sprite: string[][] = [];
+			for (let y = 0; y < FLOOR_TILE_SIZE; y += 1) {
+				const row: string[] = [];
+				for (let x = 0; x < FLOOR_TILE_SIZE; x += 1) {
+					const idx = (y * png.width + x) * 4;
+					const alpha = png.data[idx + 3]!;
+					row.push(alpha < PNG_ALPHA_THRESHOLD ? '' : rgbaToHex(png.data[idx]!, png.data[idx + 1]!, png.data[idx + 2]!));
+				}
+				sprite.push(row);
+			}
+			sprites.push(sprite);
+		}
+		return sprites;
+	} catch {
+		return null;
+	}
+}
+
+function loadWallTilesFromAssets(assetsRoot: string): string[][][] | null {
+	try {
+		const png = readPngSprite(path.join(assetsRoot, 'assets', 'walls', 'wall_0.png'));
+		const sprites: string[][][] = [];
+		for (let mask = 0; mask < WALL_BITMASK_COUNT; mask += 1) {
+			const offsetX = (mask % WALL_GRID_COLS) * WALL_PIECE_WIDTH;
+			const offsetY = Math.floor(mask / WALL_GRID_COLS) * WALL_PIECE_HEIGHT;
+			const sprite: string[][] = [];
+			for (let y = 0; y < WALL_PIECE_HEIGHT; y += 1) {
+				const row: string[] = [];
+				for (let x = 0; x < WALL_PIECE_WIDTH; x += 1) {
+					const idx = (((offsetY + y) * png.width) + (offsetX + x)) * 4;
+					const alpha = png.data[idx + 3]!;
+					row.push(alpha < PNG_ALPHA_THRESHOLD ? '' : rgbaToHex(png.data[idx]!, png.data[idx + 1]!, png.data[idx + 2]!));
+				}
+				sprite.push(row);
+			}
+			sprites.push(sprite);
+		}
+		return sprites;
+	} catch {
+		return null;
+	}
+}
+
+function loadFurnitureAssetsFromRoot(assetsRoot: string): { catalog: FurnitureCatalogAsset[]; sprites: Record<string, string[][]> } | null {
+	try {
+		const catalogCandidates = [
+			path.join(assetsRoot, 'assets', 'furniture', 'furniture-catalog.json'),
+			path.join(assetsRoot, 'assets', 'furniture-catalog.json'),
+		];
+		const catalogPath = catalogCandidates.find((candidate) => fs.existsSync(candidate));
+		if (!catalogPath) return null;
+		const raw = JSON.parse(fs.readFileSync(catalogPath, 'utf-8')) as { assets?: FurnitureCatalogAsset[] };
+		const catalog = Array.isArray(raw.assets) ? raw.assets : [];
+		const sprites: Record<string, string[][]> = {};
+		for (const asset of catalog) {
+			const normalized = asset.file.startsWith('assets/') ? asset.file : `assets/${asset.file}`;
+			const assetPath = path.join(assetsRoot, normalized);
+			if (!fs.existsSync(assetPath)) continue;
+			const png = readPngSprite(assetPath);
+			const sprite: string[][] = [];
+			for (let y = 0; y < asset.height; y += 1) {
+				const row: string[] = [];
+				for (let x = 0; x < asset.width; x += 1) {
+					const idx = (y * png.width + x) * 4;
+					const alpha = png.data[idx + 3]!;
+					row.push(alpha < PNG_ALPHA_THRESHOLD ? '' : rgbaToHex(png.data[idx]!, png.data[idx + 1]!, png.data[idx + 2]!));
+				}
+				sprite.push(row);
+			}
+			sprites[asset.id] = sprite;
+		}
+		return { catalog, sprites };
+	} catch (error) {
+		console.log(`[desktop] failed to load furniture assets: ${error}`);
+		return null;
+	}
+}
+
+function sendLayout(window: BrowserWindow, state: DesktopHostState): void {
+	const savedLayout = readLayoutFromFile();
+	const layout = savedLayout ?? state.defaultLayout;
+	postToWebview(window, { type: 'layoutLoaded', layout });
+}
+
+function startLayoutWatcher(window: BrowserWindow, state: DesktopHostState): void {
+	if (state.layoutWatcher) return;
+	state.layoutWatcher = watchLayoutFile((layout) => {
+		postToWebview(window, { type: 'layoutLoaded', layout });
+	});
+}
+
+async function bootstrapDesktopAssets(window: BrowserWindow, state: DesktopHostState): Promise<void> {
+	let installedPackRoot = getInstalledPackRoot();
+	if (!installedPackRoot) {
+		const defaultPackRoot = bundledDefaultPackRoot();
+		if (defaultPackRoot) {
+			try {
+				const applied = await applyPackDirectory(defaultPackRoot);
+				installedPackRoot = applied.packRoot;
+				state.defaultLayout = applied.layout;
+				console.log('[desktop] installed bundled default pack');
+			} catch (error) {
+				console.log(`[desktop] failed to install bundled default pack: ${error}`);
+			}
+		}
+	}
+
+	const visualAssetsRoot = bundledVisualAssetsRoot();
+	const contentAssetsRoot = installedPackRoot ?? visualAssetsRoot;
+	if (!state.defaultLayout && contentAssetsRoot) {
+		state.defaultLayout = loadDefaultLayoutFromAssets(contentAssetsRoot);
+	}
+	if (!state.defaultLayout && visualAssetsRoot && visualAssetsRoot !== contentAssetsRoot) {
+		state.defaultLayout = loadDefaultLayoutFromAssets(visualAssetsRoot);
+	}
+
+	publishPackAssets(window, contentAssetsRoot, visualAssetsRoot);
+
+	const currentLayout = readLayoutFromFile();
+	const currentRevision = typeof currentLayout?.[LAYOUT_REVISION_KEY] === 'number' ? currentLayout[LAYOUT_REVISION_KEY] as number : 0;
+	const defaultRevision = typeof state.defaultLayout?.[LAYOUT_REVISION_KEY] === 'number' ? state.defaultLayout[LAYOUT_REVISION_KEY] as number : 0;
+	if (!currentLayout || (state.defaultLayout && defaultRevision > currentRevision)) {
+		if (state.defaultLayout) {
+			writeLayoutToFile(state.defaultLayout);
+		}
+	}
+	sendLayout(window, state);
+	startLayoutWatcher(window, state);
+}
+
+function ensureDesktopAssets(window: BrowserWindow, state: DesktopHostState): void {
+	if (state.assetsBootstrapPromise) return;
+	state.assetsBootstrapPromise = bootstrapDesktopAssets(window, state)
+		.catch((error) => {
+			console.log(`[desktop] asset bootstrap failed: ${error}`);
+		})
+		.finally(() => {
+			state.assetsBootstrapPromise = null;
+		});
+}
+
+function execFileText(command: string, args: string[]): Promise<string> {
+	return new Promise((resolve, reject) => {
+		execFile(command, args, (error, stdout, stderr) => {
+			if (error) {
+				const detail = stderr?.trim() || stdout?.trim() || error.message;
+				reject(new Error(detail));
+				return;
+			}
+			resolve(stdout.trim());
+		});
+	});
+}
+
+function makeDefaultPackExportName(): string {
+	const now = new Date();
+	const y = now.getFullYear();
+	const m = String(now.getMonth() + 1).padStart(2, '0');
+	const d = String(now.getDate()).padStart(2, '0');
+	const hh = String(now.getHours()).padStart(2, '0');
+	const mm = String(now.getMinutes()).padStart(2, '0');
+	const ss = String(now.getSeconds()).padStart(2, '0');
+	return `pixel-agents-pack-${y}${m}${d}-${hh}${mm}${ss}.pack.zip`;
+}
+
+function resolvePackContentRootForExport(): string | null {
+	const installedPackRoot = getInstalledPackRoot();
+	if (installedPackRoot) {
+		return installedPackRoot;
+	}
+	return bundleAppRoot();
+}
+
+function escapeAppleScriptString(value: string): string {
+	return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+async function pickSingleFile(options: {
+	allowedFileTypes: string;
+	startingFolder?: string;
+}): Promise<string | null> {
+	const results = await Utils.openFileDialog({
+		startingFolder: options.startingFolder || os.homedir(),
+		allowedFileTypes: options.allowedFileTypes,
+		canChooseFiles: true,
+		canChooseDirectory: false,
+		allowsMultipleSelection: false,
+	});
+	const first = results.find((value) => value && value.trim().length > 0);
+	return first?.trim() || null;
+}
+
+async function pickSaveFilePath(defaultFileName: string): Promise<string | null> {
+	if (process.platform === 'darwin') {
+		const escaped = escapeAppleScriptString(defaultFileName);
+		const output = await execFileText('osascript', [
+			'-e',
+			`POSIX path of (choose file name with prompt "Export Pixel Agents Pack" default name "${escaped}")`,
+		]);
+		return output.trim() || null;
+	}
+
+	const selectedDir = await Utils.openFileDialog({
+		startingFolder: os.homedir(),
+		allowedFileTypes: '*',
+		canChooseFiles: false,
+		canChooseDirectory: true,
+		allowsMultipleSelection: false,
+	});
+	const baseDir = selectedDir.find((value) => value && value.trim().length > 0)?.trim();
+	return baseDir ? path.join(baseDir, defaultFileName) : null;
+}
+
+function showDesktopMessage(kind: 'info' | 'warning' | 'error', message: string): void {
+	void Utils.showMessageBox({
+		type: kind,
+		title: 'Pixel Agents Desktop',
+		message,
+		buttons: ['OK'],
+		defaultId: 0,
+		cancelId: 0,
+	}).catch((error) => {
+		console.log(`[desktop] failed to show message box: ${error}`);
+	});
+}
+
+function publishPackAssets(window: BrowserWindow, contentAssetsRoot: string | null, visualAssetsRoot: string | null): void {
+	const charSprites = (contentAssetsRoot ? loadCharacterSpritesFromAssets(contentAssetsRoot) : null)
+		?? (visualAssetsRoot && visualAssetsRoot !== contentAssetsRoot ? loadCharacterSpritesFromAssets(visualAssetsRoot) : null);
+	if (charSprites) {
+		postToWebview(window, { type: 'characterSpritesLoaded', characters: charSprites });
+	}
+
+	if (visualAssetsRoot) {
+		const floorTiles = loadFloorTilesFromAssets(visualAssetsRoot);
+		if (floorTiles) {
+			postToWebview(window, { type: 'floorTilesLoaded', sprites: floorTiles });
+		}
+		const wallTiles = loadWallTilesFromAssets(visualAssetsRoot);
+		if (wallTiles) {
+			postToWebview(window, { type: 'wallTilesLoaded', sprites: wallTiles });
+		}
+	}
+
+	if (contentAssetsRoot) {
+		const assets = loadFurnitureAssetsFromRoot(contentAssetsRoot);
+		if (assets) {
+			postToWebview(window, {
+				type: 'furnitureAssetsLoaded',
+				catalog: assets.catalog,
+				sprites: assets.sprites,
+			});
+		}
+	}
 }
 
 function parseTimestampMs(value: unknown): number {
@@ -268,6 +650,51 @@ function toBoolean(value: unknown, fallback: boolean): boolean {
 
 function toNumber(value: unknown, fallback: number): number {
 	return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function writeJsonFileAtomic(filePath: string, value: unknown): void {
+	const dir = path.dirname(filePath);
+	fs.mkdirSync(dir, { recursive: true });
+	const tmpPath = `${filePath}.tmp`;
+	fs.writeFileSync(tmpPath, JSON.stringify(value, null, 2), 'utf-8');
+	fs.renameSync(tmpPath, filePath);
+}
+
+function loadDesktopPersistedState(): DesktopPersistedState {
+	if (!fs.existsSync(DESKTOP_STATE_FILE)) {
+		return { agentSeats: {} };
+	}
+	try {
+		const parsed = parseJsonObject(fs.readFileSync(DESKTOP_STATE_FILE, 'utf8'));
+		const rawSeats = parsed?.['agentSeats'];
+		const agentSeats: Record<string, AgentSeatAssignment> = {};
+		if (rawSeats && typeof rawSeats === 'object') {
+			for (const [agentId, rawSeat] of Object.entries(rawSeats as Record<string, unknown>)) {
+				if (!rawSeat || typeof rawSeat !== 'object') continue;
+				const seat = rawSeat as Record<string, unknown>;
+				const fallbackAppearance = appearanceForSession(agentId);
+				agentSeats[agentId] = {
+					palette: toNumber(seat['palette'], fallbackAppearance.palette),
+					hueShift: toNumber(seat['hueShift'], fallbackAppearance.hueShift),
+					seatId: typeof seat['seatId'] === 'string' ? seat['seatId'] : null,
+				};
+			}
+		}
+		return { agentSeats };
+	} catch (error) {
+		console.log(`[desktop] failed to load persisted state: ${error}`);
+		return { agentSeats: {} };
+	}
+}
+
+function persistDesktopState(state: DesktopHostState): void {
+	try {
+		writeJsonFileAtomic(state.persistedStateFilePath, {
+			agentSeats: state.agentSeats,
+		});
+	} catch (error) {
+		console.log(`[desktop] failed to persist desktop state: ${error}`);
+	}
 }
 
 function loadWorkspaceDesktopSettings(workspaceRoot: string | null): {
@@ -459,6 +886,7 @@ function collectLiveAgents(
 	folderName: string,
 	hiddenSessionIds: ReadonlySet<string>,
 	forcedLiveSessionIds: ReadonlySet<string>,
+	agentSeats: Readonly<Record<string, AgentSeatAssignment>>,
 ): DesktopAgent[] {
 	let names: string[] = [];
 	try {
@@ -481,6 +909,7 @@ function collectLiveAgents(
 
 		const runtime = parseSessionRuntime(jsonlPath, sessionId);
 		const appearance = appearanceForSession(sessionId);
+		const persistedSeat = agentSeats[sessionId];
 		if (runtime.lastActivityAtMs < thresholdMs && !forcedLiveSessionIds.has(sessionId)) {
 			continue;
 		}
@@ -493,9 +922,9 @@ function collectLiveAgents(
 			status: runtime.status,
 			toolStatus: runtime.toolStatus,
 			lastActivityAtMs: runtime.lastActivityAtMs,
-			palette: appearance.palette,
-			hueShift: appearance.hueShift,
-			seatId: null,
+			palette: persistedSeat?.palette ?? appearance.palette,
+			hueShift: persistedSeat?.hueShift ?? appearance.hueShift,
+			seatId: persistedSeat?.seatId ?? null,
 		});
 	}
 
@@ -523,12 +952,15 @@ function createInitialState(): DesktopHostState {
 	const traceSmokeMode = process.env[TRACE_SMOKE_ENV] === '1';
 	const traceContractProbe = process.env[TRACE_CONTRACT_ENV] === '1';
 	const interactionSmokeMode = process.env[INTERACTION_SMOKE_ENV] === '1';
+	const persisted = loadDesktopPersistedState();
 	return {
 		workspaceRoot,
 		projectDir,
 		workspaceFolderName,
 		settingsFilePath: config.settingsFilePath,
+		persistedStateFilePath: DESKTOP_STATE_FILE,
 		agents: new Map(),
+		agentSeats: persisted.agentSeats,
 		historySessions: [],
 		settings: {
 			soundEnabled: true,
@@ -553,6 +985,9 @@ function createInitialState(): DesktopHostState {
 		interactionSmokeMode,
 		interactionSmokeStarted: false,
 		interactionSmokePassed: false,
+		defaultLayout: null,
+		layoutWatcher: null,
+		assetsBootstrapPromise: null,
 		refreshTimer: null,
 		didInitialize: false,
 		isShuttingDown: false,
@@ -639,6 +1074,7 @@ function refreshAndPublish(window: BrowserWindow, state: DesktopHostState, initi
 		state.workspaceFolderName,
 		state.hiddenSessionIds,
 		state.forcedLiveSessionIds,
+		state.agentSeats,
 	);
 	const liveSessionIds = liveAgents.map((agent) => agent.sessionId.toLowerCase());
 	const liveJsonlPaths = liveAgents.map((agent) => agent.jsonlPath);
@@ -1163,6 +1599,8 @@ function cleanupHostResources(state: DesktopHostState, reason: string): void {
 	if (state.isShuttingDown) return;
 	state.isShuttingDown = true;
 	stopRefreshLoop(state);
+	state.layoutWatcher?.dispose();
+	state.layoutWatcher = null;
 	for (const instanceId of Array.from(state.terminalInstances.keys())) {
 		closeTerminalInstance(state, instanceId, reason, true);
 	}
@@ -1243,6 +1681,7 @@ function handleWebviewMessage(window: BrowserWindow, state: DesktopHostState, me
 	switch (message.type) {
 		case 'webviewReady':
 			console.log('[desktop] webviewReady');
+			ensureDesktopAssets(window, state);
 			refreshAndPublish(window, state, true);
 			if (state.traceSmokeMode && !state.traceSmokeStarted) {
 				const traceId = `trace-smoke-${Date.now().toString(36)}`;
@@ -1283,6 +1722,80 @@ function handleWebviewMessage(window: BrowserWindow, state: DesktopHostState, me
 			startRefreshLoop(window, state);
 			runInteractionSmokeScenario(window, state);
 			return;
+		case 'saveLayout':
+			writeLayoutToFile(message.layout);
+			state.layoutWatcher?.markOwnWrite();
+			return;
+		case 'exportPack':
+			void (async () => {
+				const layout = readLayoutFromFile();
+				if (!layout) {
+					showDesktopMessage('warning', 'No saved layout to export.');
+					return;
+				}
+				const sourceAssetsRoot = resolvePackContentRootForExport();
+				if (!sourceAssetsRoot) {
+					showDesktopMessage('error', 'Cannot resolve furniture assets root for pack export.');
+					return;
+				}
+				const outputZipPath = await pickSaveFilePath(makeDefaultPackExportName());
+				if (!outputZipPath) return;
+				try {
+					await exportPackZip({
+						layout,
+						sourceAssetsRoot,
+						outputZipPath,
+					});
+					showDesktopMessage('info', 'Pack exported successfully.');
+				} catch (error) {
+					const text = error instanceof Error ? error.message : String(error);
+					showDesktopMessage('error', `Failed to export pack. ${text}`);
+				}
+			})().catch((error) => {
+				console.log(`[desktop] exportPack failed: ${error}`);
+			});
+			return;
+		case 'importPack':
+			void (async () => {
+				const zipPath = await pickSingleFile({ allowedFileTypes: 'zip' });
+				if (!zipPath) return;
+				try {
+					const applied = await applyPackZip(zipPath);
+					state.defaultLayout = applied.layout;
+					publishPackAssets(window, applied.packRoot, bundledVisualAssetsRoot());
+					state.layoutWatcher?.markOwnWrite();
+					writeLayoutToFile(applied.layout);
+					sendLayout(window, state);
+					showDesktopMessage('info', `Pack "${applied.manifest.name}" loaded successfully.`);
+				} catch (error) {
+					const text = error instanceof Error ? error.message : String(error);
+					showDesktopMessage('error', `Failed to import pack. ${text}`);
+				}
+			})().catch((error) => {
+				console.log(`[desktop] importPack failed: ${error}`);
+			});
+			return;
+		case 'importLayout':
+			void (async () => {
+				const jsonPath = await pickSingleFile({ allowedFileTypes: 'json' });
+				if (!jsonPath) return;
+				try {
+					const imported = JSON.parse(fs.readFileSync(jsonPath, 'utf-8')) as Record<string, unknown>;
+					if (imported.version !== 1 || !Array.isArray(imported.tiles)) {
+						showDesktopMessage('error', 'Invalid layout file.');
+						return;
+					}
+					state.layoutWatcher?.markOwnWrite();
+					writeLayoutToFile(imported);
+					postToWebview(window, { type: 'layoutLoaded', layout: imported });
+					showDesktopMessage('info', 'Layout imported successfully.');
+				} catch {
+					showDesktopMessage('error', 'Failed to read or parse layout file.');
+				}
+			})().catch((error) => {
+				console.log(`[desktop] importLayout failed: ${error}`);
+			});
+			return;
 		case 'focusAgent':
 			if (!state.agents.has(message.id)) return;
 			state.selectedAgentId = message.id;
@@ -1309,6 +1822,18 @@ function handleWebviewMessage(window: BrowserWindow, state: DesktopHostState, me
 			}
 			state.agents.delete(message.id);
 			refreshAndPublish(window, state, false);
+			return;
+		case 'saveAgentSeats':
+			state.agentSeats = { ...state.agentSeats, ...message.seats };
+			for (const [agentId, seat] of Object.entries(message.seats)) {
+				const existing = state.agents.get(agentId);
+				if (existing) {
+					existing.palette = seat.palette;
+					existing.hueShift = seat.hueShift;
+					existing.seatId = seat.seatId;
+				}
+			}
+			persistDesktopState(state);
 			return;
 		case 'openHistorySession':
 			state.hiddenSessionIds.delete(message.sessionId);

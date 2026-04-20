@@ -20,6 +20,10 @@ export interface TerminalPtyLike {
 	onExit(listener: (event: TerminalExitEvent) => void): TerminalDisposable;
 }
 
+function sidecarBinaryName(): string {
+	return process.platform === 'win32' ? 'pixel-agents-pty.exe' : 'pixel-agents-pty';
+}
+
 interface ZigPtyOptions {
 	binaryPath: string;
 	shell: string;
@@ -247,6 +251,7 @@ class ZigPtyBridge implements TerminalPtyLike {
 }
 
 export function resolveZigPtyBinaryPath(): string | null {
+	const binaryName = sidecarBinaryName();
 	const envPath = process.env['PIXEL_AGENTS_PTY_BINARY'];
 	if (envPath && envPath.trim().length > 0) {
 		const abs = path.resolve(envPath.trim());
@@ -256,16 +261,19 @@ export function resolveZigPtyBinaryPath(): string | null {
 	const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 	const workspaceEnv = process.env['PIXEL_AGENTS_WORKSPACE']?.trim();
 	const initCwd = process.env['INIT_CWD']?.trim();
+	const runtimeCwd = process.cwd();
 
 	const candidates = [
-		workspaceEnv ? path.join(workspaceEnv, 'bin', 'pixel-agents-pty') : '',
-		workspaceEnv ? path.join(workspaceEnv, 'apps', 'desktop', 'bin', 'pixel-agents-pty') : '',
-		initCwd ? path.join(initCwd, 'bin', 'pixel-agents-pty') : '',
-		initCwd ? path.join(initCwd, 'apps', 'desktop', 'bin', 'pixel-agents-pty') : '',
-		path.resolve(moduleDir, '..', '..', 'bin', 'pixel-agents-pty'),
-		path.resolve(moduleDir, '..', '..', '..', 'bin', 'pixel-agents-pty'),
-		path.join(process.cwd(), 'apps', 'desktop', 'bin', 'pixel-agents-pty'),
-		path.join(process.cwd(), 'bin', 'pixel-agents-pty'),
+		path.resolve(runtimeCwd, '../Resources/app/bin', binaryName),
+		path.resolve(runtimeCwd, 'bin', binaryName),
+		workspaceEnv ? path.join(workspaceEnv, 'apps', 'desktop', 'bin', binaryName) : '',
+		workspaceEnv ? path.join(workspaceEnv, 'bin', binaryName) : '',
+		initCwd ? path.join(initCwd, 'apps', 'desktop', 'bin', binaryName) : '',
+		initCwd ? path.join(initCwd, 'bin', binaryName) : '',
+		path.resolve(moduleDir, '..', '..', 'bin', binaryName),
+		path.resolve(moduleDir, '..', '..', '..', 'bin', binaryName),
+		path.join(runtimeCwd, 'apps', 'desktop', 'bin', binaryName),
+		path.join(runtimeCwd, 'bin', binaryName),
 	].filter((value) => value.length > 0);
 	for (const candidate of candidates) {
 		if (fs.existsSync(candidate)) {

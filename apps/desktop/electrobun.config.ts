@@ -13,6 +13,10 @@ const config: ElectrobunConfig = {
 		},
 		copy: {
 			'../../dist/webview': 'views/pixel',
+			'../../dist/webview/fonts': 'views/pixel/assets/fonts',
+			'../../dist/assets': 'assets',
+			'../../packs/sources/default': 'assets/packs/default',
+			'bin': 'bin',
 		},
 	},
 	runtime: {

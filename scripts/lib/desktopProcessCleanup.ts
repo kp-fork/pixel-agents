@@ -39,8 +39,10 @@ function listRepoDesktopPids(repoRoot: string): number[] {
 			(command.includes('electrobun') || command.includes('/Resources/main.js') || command.includes('/bun/index.ts'));
 		const isNodePtyHelper =
 			command.includes('/@lydell/node-pty-') && command.includes('/spawn-helper');
+		const isZigPtyHelper =
+			command.includes(`${repoRoot}/apps/desktop`) && command.includes('/bin/pixel-agents-pty');
 
-		if (isDesktopRuntime || isNodePtyHelper) {
+		if (isDesktopRuntime || isNodePtyHelper || isZigPtyHelper) {
 			pids.push(pid);
 		}
 	}
@@ -106,4 +108,3 @@ export async function cleanupDesktopProcesses(
 
 	return { terminated, forceKilled };
 }
-
