@@ -15,6 +15,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const output = vscode.window.createOutputChannel('Pixel Agents');
 	const runtimeInfo = `id=${context.extension.id} version=${context.extension.packageJSON.version} path=${context.extensionPath}`;
 	output.appendLine(`[activate] ${runtimeInfo}`);
+	console.log(`[Pixel Agents] PIXEL_AGENTS_DEBUG=${process.env.PIXEL_AGENTS_DEBUG ?? 'not set'}`);
 
 	const provider = new PixelAgentsViewProvider(context);
 	providerInstance = provider;

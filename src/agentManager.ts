@@ -11,6 +11,42 @@ import { cancelPermissionTimer,cancelWaitingTimer } from './timerManager.js';
 import { formatToolStatus } from './transcriptParser.js';
 import type { AgentId, AgentState, PersistedAgent } from './types.js';
 
+function createTrackedAgentState(
+	id: AgentId,
+	sessionId: string,
+	terminal: vscode.Terminal,
+	projectDir: string,
+	jsonlFile: string,
+	folderName?: string,
+): AgentState {
+	return {
+		id,
+		sessionId,
+		terminalRef: terminal,
+		isExternal: false,
+		projectDir,
+		jsonlFile,
+		fileOffset: 0,
+		lineBuffer: '',
+		activeToolIds: new Set(),
+		activeToolStatuses: new Map(),
+		activeToolNames: new Map(),
+		activeSubagentToolIds: new Map(),
+		activeSubagentToolNames: new Map(),
+		backgroundAgentToolIds: new Set(),
+		isWaiting: false,
+		permissionSent: false,
+		hadToolsInTurn: false,
+		folderName,
+		lastDataAt: 0,
+		linesProcessed: 0,
+		seenUnknownRecordTypes: new Set(),
+		hookDelivered: false,
+		inputTokens: 0,
+		outputTokens: 0,
+	};
+}
+
 function normalizeWorkspacePath(value: string): string {
 	const trimmed = value.trim();
 	if (trimmed.length <= 1) return trimmed;
@@ -267,23 +303,7 @@ export function launchTerminalForSession(
 	const folders = vscode.workspace.workspaceFolders;
 	const isMultiRoot = !!(folders && folders.length > 1);
 	const folderName = isMultiRoot && cwd ? path.basename(cwd) : undefined;
-	const agent: AgentState = {
-		id,
-		terminalRef: terminal,
-		projectDir,
-		jsonlFile: expectedFile,
-		fileOffset: 0,
-		lineBuffer: '',
-		activeToolIds: new Set(),
-		activeToolStatuses: new Map(),
-		activeToolNames: new Map(),
-		activeSubagentToolIds: new Map(),
-		activeSubagentToolNames: new Map(),
-		isWaiting: false,
-		permissionSent: false,
-		hadToolsInTurn: false,
-		folderName,
-	};
+	const agent = createTrackedAgentState(id, sessionId, terminal, projectDir, expectedFile, folderName);
 
 	agents.set(id, agent);
 	activeAgentIdRef.current = id;
@@ -362,10 +382,17 @@ export function persistAgents(
 	for (const agent of agents.values()) {
 		persisted.push({
 			id: agent.id,
-			terminalName: agent.terminalRef.name,
+			sessionId: agent.sessionId,
+			terminalName: agent.terminalRef?.name ?? '',
+			isExternal: agent.isExternal,
 			jsonlFile: agent.jsonlFile,
 			projectDir: agent.projectDir,
 			folderName: agent.folderName,
+			teamName: agent.teamName,
+			agentName: agent.agentName,
+			isTeamLead: agent.isTeamLead,
+			leadAgentId: agent.leadAgentId,
+			teamUsesTmux: agent.teamUsesTmux,
 		});
 	}
 	context.workspaceState.update(WORKSPACE_KEY_AGENTS, persisted);
@@ -422,23 +449,21 @@ export function restoreAgents(
 		const restoredId = typeof p.id === 'string' && p.id.length > 0
 			? p.id
 			: (sessionIdFromTerminalName(p.terminalName) || path.basename(jsonlFile, '.jsonl'));
-		const agent: AgentState = {
-			id: restoredId,
-			terminalRef: terminal,
+		const restoredSessionId = p.sessionId || sessionIdFromTerminalName(p.terminalName) || restoredId;
+		const agent = createTrackedAgentState(
+			restoredId,
+			restoredSessionId,
+			terminal,
 			projectDir,
 			jsonlFile,
-			fileOffset: 0,
-			lineBuffer: '',
-			activeToolIds: new Set(),
-			activeToolStatuses: new Map(),
-			activeToolNames: new Map(),
-			activeSubagentToolIds: new Map(),
-			activeSubagentToolNames: new Map(),
-			isWaiting: false,
-			permissionSent: false,
-			hadToolsInTurn: false,
-			folderName: p.folderName,
-		};
+			p.folderName,
+		);
+		agent.isExternal = p.isExternal ?? false;
+		agent.teamName = p.teamName;
+		agent.agentName = p.agentName;
+		agent.isTeamLead = p.isTeamLead;
+		agent.leadAgentId = p.leadAgentId;
+		agent.teamUsesTmux = p.teamUsesTmux;
 
 		agents.set(restoredId, agent);
 		knownJsonlFiles.add(jsonlFile);

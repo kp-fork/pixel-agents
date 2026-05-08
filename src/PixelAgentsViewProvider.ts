@@ -100,7 +100,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			const status: AgentRuntimeStatus = agent.activeToolIds.size > 0 || !agent.isWaiting ? 'active' : 'waiting';
 			return {
 				id: agent.id,
-				terminalName: agent.terminalRef.name,
+				terminalName: agent.terminalRef?.name ?? '',
 				sessionId,
 				status,
 				activeToolCount: agent.activeToolIds.size,
@@ -175,7 +175,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		const liveSessionIds = Array.from(new Set(
 			Array.from(this.agents.values()).flatMap((agent) => {
 				const ids: string[] = [];
-				const terminalMatch = agent.terminalRef.name.match(/\(([0-9a-fA-F-]{36})\)$/);
+				const terminalMatch = agent.terminalRef?.name.match(/\(([0-9a-fA-F-]{36})\)$/);
 				if (terminalMatch?.[1]) {
 					ids.push(terminalMatch[1].toLowerCase());
 				}
@@ -344,12 +344,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 			const agent = this.agents.get(message.id);
 			if (agent) {
 				this.activeAgentId.current = message.id;
-				agent.terminalRef.show();
+				agent.terminalRef?.show();
 			}
 		} else if (message.type === 'closeAgent') {
 			const agent = this.agents.get(message.id);
 			if (agent) {
-				agent.terminalRef.dispose();
+				agent.terminalRef?.dispose();
 			}
 		} else if (message.type === 'saveAgentSeats') {
 			// Store seat assignments in a separate key (never touched by persistAgents)
@@ -621,13 +621,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 				return match ? match[1] : '';
 			};
 			for (const [id, agent] of this.agents) {
-				const terminalSessionId = sessionIdFromTerminalName(agent.terminalRef.name);
+				const terminalSessionId = agent.terminalRef ? sessionIdFromTerminalName(agent.terminalRef.name) : '';
 				const sameSession = path.basename(agent.jsonlFile) === `${sessionId}.jsonl`
 					|| (expectedJsonlPath !== '' && agent.jsonlFile === expectedJsonlPath)
 					|| terminalSessionId === sessionId;
 				if (!sameSession) continue;
 				this.activeAgentId.current = id;
-				agent.terminalRef.show();
+				agent.terminalRef?.show();
 				postToWebview(this.webview, { type: 'agentSelected', id });
 				this.sendHistorySessions(projectDir);
 				return;

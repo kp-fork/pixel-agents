@@ -19,15 +19,42 @@ export function clearAgentActivity(
 	webview: vscode.Webview | undefined,
 ): void {
 	if (!agent) return;
-	agent.activeToolIds.clear();
-	agent.activeToolStatuses.clear();
-	agent.activeToolNames.clear();
-	agent.activeSubagentToolIds.clear();
-	agent.activeSubagentToolNames.clear();
+
+	if (agent.backgroundAgentToolIds.size > 0) {
+		for (const toolId of Array.from(agent.activeToolIds)) {
+			if (agent.backgroundAgentToolIds.has(toolId)) continue;
+			agent.activeToolIds.delete(toolId);
+			agent.activeToolStatuses.delete(toolId);
+			const toolName = agent.activeToolNames.get(toolId);
+			agent.activeToolNames.delete(toolId);
+			if (toolName === 'Task' || toolName === 'Agent') {
+				agent.activeSubagentToolIds.delete(toolId);
+				agent.activeSubagentToolNames.delete(toolId);
+			}
+		}
+	} else {
+		agent.activeToolIds.clear();
+		agent.activeToolStatuses.clear();
+		agent.activeToolNames.clear();
+		agent.activeSubagentToolIds.clear();
+		agent.activeSubagentToolNames.clear();
+	}
+
 	agent.isWaiting = false;
 	agent.permissionSent = false;
 	cancelPermissionTimer(agentId, permissionTimers);
 	postToWebview(webview, { type: 'agentToolsClear', id: agentId });
+	for (const toolId of agent.backgroundAgentToolIds) {
+		const status = agent.activeToolStatuses.get(toolId);
+		if (status) {
+			postToWebview(webview, {
+				type: 'agentToolStart',
+				id: agentId,
+				toolId,
+				status,
+			});
+		}
+	}
 	postToWebview(webview, { type: 'agentStatus', id: agentId, status: 'active' });
 }
 
@@ -89,7 +116,6 @@ export function startPermissionTimer(
 		const agent = agents.get(agentId);
 		if (!agent) return;
 
-		// Only flag if there are still active non-exempt tools (parent or sub-agent)
 		let hasNonExempt = false;
 		for (const toolId of agent.activeToolIds) {
 			const toolName = agent.activeToolNames.get(toolId);
@@ -99,7 +125,6 @@ export function startPermissionTimer(
 			}
 		}
 
-		// Check sub-agent tools for non-exempt tools
 		const stuckSubagentParentToolIds: string[] = [];
 		for (const [parentToolId, subToolNames] of agent.activeSubagentToolNames) {
 			for (const [, toolName] of subToolNames) {
@@ -118,7 +143,6 @@ export function startPermissionTimer(
 				type: 'agentToolPermission',
 				id: agentId,
 			});
-			// Also notify stuck sub-agents
 			for (const parentToolId of stuckSubagentParentToolIds) {
 				postToWebview(webview, {
 					type: 'subagentToolPermission',

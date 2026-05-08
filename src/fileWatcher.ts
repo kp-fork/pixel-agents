@@ -150,7 +150,13 @@ function scanForNewJsonlFiles(
 			knownJsonlFiles.add(file);
 
 			const activeTerminal = vscode.window.activeTerminal;
-			const routing = decideJsonlRouting(activeAgentIdRef.current, activeTerminal, agents.values());
+			const routing = decideJsonlRouting(
+				activeAgentIdRef.current,
+				activeTerminal,
+				Array.from(agents.values())
+					.filter((agent) => agent.terminalRef !== undefined)
+					.map((agent) => ({ id: agent.id, terminalRef: agent.terminalRef })),
+			);
 			if (routing.action === 'reassign') {
 				console.log(`[Pixel Agents] New JSONL detected: ${path.basename(file)}, reassigning to agent ${routing.agentId}`);
 				reassignAgentToFile(
@@ -184,7 +190,11 @@ function scanForNewJsonlFiles(
 function findSingleUntrackedClaudeTerminal(
 	agents: Map<AgentId, AgentState>,
 ): vscode.Terminal | null {
-	const tracked = new Set(Array.from(agents.values()).map((agent) => agent.terminalRef));
+	const tracked = new Set(
+		Array.from(agents.values())
+			.map((agent) => agent.terminalRef)
+			.filter((terminal): terminal is vscode.Terminal => terminal !== undefined),
+	);
 	const candidates = vscode.window.terminals.filter((terminal) =>
 		terminal.name.startsWith(TERMINAL_NAME_PREFIX) && !tracked.has(terminal),
 	);
@@ -215,7 +225,9 @@ function adoptTerminalForFile(
 	}
 	const agent: AgentState = {
 		id,
+		sessionId: id,
 		terminalRef: terminal,
+		isExternal: false,
 		projectDir,
 		jsonlFile,
 		fileOffset: 0,
@@ -225,9 +237,16 @@ function adoptTerminalForFile(
 		activeToolNames: new Map(),
 		activeSubagentToolIds: new Map(),
 		activeSubagentToolNames: new Map(),
+		backgroundAgentToolIds: new Set(),
 		isWaiting: false,
 		permissionSent: false,
 		hadToolsInTurn: false,
+		lastDataAt: 0,
+		linesProcessed: 0,
+		seenUnknownRecordTypes: new Set(),
+		hookDelivered: false,
+		inputTokens: 0,
+		outputTokens: 0,
 	};
 
 	agents.set(id, agent);

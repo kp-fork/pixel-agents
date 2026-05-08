@@ -698,6 +698,32 @@ export class OfficeState {
     }
   }
 
+  setTeamInfo(
+    id: AgentId,
+    teamName?: string,
+    agentName?: string,
+    isTeamLead?: boolean,
+    leadAgentId?: AgentId,
+    teamUsesTmux?: boolean,
+  ): void {
+    const ch = this.characters.get(id);
+    if (!ch) return;
+    ch.teamName = teamName;
+    ch.agentName = agentName;
+    ch.isTeamLead = isTeamLead;
+    ch.leadAgentId = leadAgentId;
+    if (teamUsesTmux !== undefined) {
+      ch.teamUsesTmux = teamUsesTmux;
+    }
+  }
+
+  setAgentTokens(id: AgentId, inputTokens: number, outputTokens: number): void {
+    const ch = this.characters.get(id);
+    if (!ch) return;
+    ch.inputTokens = inputTokens;
+    ch.outputTokens = outputTokens;
+  }
+
   update(dt: number): void {
     const toDelete: AgentId[] = []
     for (const ch of this.characters.values()) {
