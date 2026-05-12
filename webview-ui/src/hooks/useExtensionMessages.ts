@@ -375,12 +375,12 @@ export function useExtensionMessages(
         const id = msg.id as AgentId
         const toolId = msg.toolId as string
         const status = msg.status as string
+        const toolName = typeof msg.toolName === 'string' ? msg.toolName : extractToolName(status)
         setAgentTools((prev) => {
           const list = prev[id] || []
           if (list.some((t) => t.toolId === toolId)) return prev
           return { ...prev, [id]: [...list, { toolId, status, done: false }] }
         })
-        const toolName = extractToolName(status)
         os.setAgentTool(id, toolName)
         os.setAgentActive(id, true)
         os.clearPermissionBubble(id)

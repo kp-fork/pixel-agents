@@ -583,6 +583,7 @@ export function sendCurrentAgentStatuses(
 				id: agentId,
 				toolId,
 				status,
+				toolName: agent.activeToolNames.get(toolId),
 			});
 		}
 		// Re-send waiting status

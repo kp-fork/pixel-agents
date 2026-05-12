@@ -4,7 +4,7 @@ import * as path from 'path';
 import type * as vscode from 'vscode';
 
 import { cancelPermissionTimer, cancelWaitingTimer } from '../../src/timerManager.js';
-import type { AgentState } from '../../src/types.js';
+import type { AgentId, AgentState } from '../../src/types.js';
 import { HOOK_EVENT_BUFFER_MS, SESSION_END_GRACE_MS } from './constants.js';
 import type { AgentEvent, HookProvider } from './provider.js';
 import { getInlineTeammates, hasInlineTeammates } from './teamUtils.js';
@@ -49,20 +49,20 @@ interface SessionLifecycleCallbacks {
   ) => void;
   /** Called when /clear is detected via hooks (SessionEnd reason=clear + SessionStart source=clear). */
   onSessionClear?: (
-    agentId: number,
+    agentId: AgentId,
     newSessionId: string,
     newTranscriptPath: string | undefined,
   ) => void;
   /** Called when a session is resumed (--resume). Clears dismissals so the file can be re-adopted. */
   onSessionResume?: (transcriptPath: string) => void;
   /** Called when a session ends (exit/logout). */
-  onSessionEnd?: (agentId: number, reason: string) => void;
+  onSessionEnd?: (agentId: AgentId, reason: string) => void;
   /** Called when an Agent Teams teammate is detected via SubagentStart hook.
    *  Triggers scanning of the session's subagents/ directory for the teammate's JSONL. */
-  onTeammateDetected?: (parentAgentId: number, sessionId: string, agentType: string) => void;
+  onTeammateDetected?: (parentAgentId: AgentId, sessionId: string, agentType: string) => void;
   /** Called when a teammate should be removed (e.g. no longer in team config members).
    *  Removes the teammate agent from the office. */
-  onTeammateRemoved?: (teammateAgentId: number) => void;
+  onTeammateRemoved?: (teammateAgentId: AgentId) => void;
 }
 
 /** Pending external session info (waiting for confirmation event before creating agent). */
@@ -74,7 +74,7 @@ interface PendingExternalSession {
 }
 
 export class HookEventHandler {
-  private sessionToAgentId = new Map<string, number>();
+  private sessionToAgentId = new Map<string, AgentId>();
   private bufferedEvents: BufferedEvent[] = [];
   private bufferTimer: ReturnType<typeof setInterval> | null = null;
   private lifecycleCallbacks: SessionLifecycleCallbacks = {};
@@ -82,9 +82,9 @@ export class HookEventHandler {
   private pendingExternalSessions = new Map<string, PendingExternalSession>();
 
   constructor(
-    private agents: Map<number, AgentState>,
-    private waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
-    private permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+    private agents: Map<AgentId, AgentState>,
+    private waitingTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
+    private permissionTimers: Map<AgentId, ReturnType<typeof setTimeout>>,
     private getWebview: () => vscode.Webview | undefined,
     private provider: HookProvider,
     private watchAllSessionsRef?: { current: boolean },
@@ -118,7 +118,7 @@ export class HookEventHandler {
   }
 
   /** Register an agent for hook event routing. Flushes any buffered events for this session. */
-  registerAgent(sessionId: string, agentId: number): void {
+  registerAgent(sessionId: string, agentId: AgentId): void {
     this.sessionToAgentId.set(sessionId, agentId);
     // Flush any buffered events for this session
     this.flushBufferedEvents(sessionId);
@@ -360,7 +360,7 @@ export class HookEventHandler {
   private handleSessionEnd(
     normEvent: Extract<AgentEvent, { kind: 'sessionEnd' }>,
     agent: AgentState,
-    agentId: number,
+    agentId: AgentId,
     webview: vscode.Webview | undefined,
   ): void {
     const reason = normEvent.reason;
@@ -403,7 +403,7 @@ export class HookEventHandler {
   private handlePreToolUse(
     normEvent: Extract<AgentEvent, { kind: 'toolStart' }>,
     agent: AgentState,
-    agentId: number,
+    agentId: AgentId,
     webview: vscode.Webview | undefined,
   ): void {
     const toolName = normEvent.toolName;
@@ -458,7 +458,7 @@ export class HookEventHandler {
    */
   private handlePostToolUse(
     agent: AgentState,
-    agentId: number,
+    agentId: AgentId,
     webview: vscode.Webview | undefined,
   ): void {
     if (agent.currentHookToolId) {
@@ -492,7 +492,7 @@ export class HookEventHandler {
   private handleSubagentStart(
     event: HookEvent,
     agent: AgentState,
-    agentId: number,
+    agentId: AgentId,
     webview: vscode.Webview | undefined,
   ): void {
     const agentType = this.provider.team?.extractTeammateNameFromEvent(event) ?? 'unknown';
@@ -565,7 +565,7 @@ export class HookEventHandler {
    */
   private handleSubagentStop(
     agent: AgentState,
-    agentId: number,
+    agentId: AgentId,
     webview: vscode.Webview | undefined,
   ): void {
     // Check if this agent has inline teammates (independent agents with leadAgentId).
@@ -613,7 +613,7 @@ export class HookEventHandler {
   /** Handle PermissionRequest: cancel heuristic timer, show permission bubble on agent + sub-agents. */
   private handlePermissionRequest(
     agent: AgentState,
-    agentId: number,
+    agentId: AgentId,
     webview: vscode.Webview | undefined,
   ): void {
     // When lead has inline teammates, route permission to the teammates instead.
@@ -647,7 +647,7 @@ export class HookEventHandler {
   /** Handle Stop: Claude finished responding, mark agent as waiting. */
   private handleStop(
     agent: AgentState,
-    agentId: number,
+    agentId: AgentId,
     webview: vscode.Webview | undefined,
   ): void {
     this.markAgentWaiting(agent, agentId, webview);
@@ -662,7 +662,7 @@ export class HookEventHandler {
   private handleTeammateIdle(
     event: HookEvent,
     agent: AgentState,
-    agentId: number,
+    agentId: AgentId,
     webview: vscode.Webview | undefined,
   ): void {
     const agentType = this.provider.team?.extractTeammateNameFromEvent(event);
@@ -700,7 +700,7 @@ export class HookEventHandler {
    * Handle TaskCompleted: a teammate marked its task done.
    * Routes to the specific teammate when identifiable, marking it waiting instantly.
    */
-  private handleTaskCompleted(event: HookEvent, agentId: number): void {
+  private handleTaskCompleted(event: HookEvent, agentId: AgentId): void {
     const subject = (event.subject as string) ?? '';
     const agentType = this.provider.team?.extractTeammateNameFromEvent(event);
     if (debug)
@@ -734,7 +734,7 @@ export class HookEventHandler {
    */
   private markAgentWaiting(
     agent: AgentState,
-    agentId: number,
+    agentId: AgentId,
     webview: vscode.Webview | undefined,
   ): void {
     cancelWaitingTimer(agentId, this.waitingTimers);

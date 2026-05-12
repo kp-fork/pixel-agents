@@ -142,6 +142,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 		return this.activeWebview ?? this.webviewPanel?.webview ?? this.webviewView?.webview;
 	}
 
+	public getActiveWebview(): vscode.Webview | undefined {
+		return this.webview;
+	}
+
 	private persistAgents = (): void => {
 		persistAgents(this.agents, this.context);
 	};
