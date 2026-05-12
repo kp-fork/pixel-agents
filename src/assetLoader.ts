@@ -166,20 +166,26 @@ function pngToSpriteData(pngBuffer: Buffer, width: number, height: number): stri
 // ── Default layout loading ───────────────────────────────────
 
 /**
- * Load the bundled default layout from assets/default-layout.json.
+ * Load the bundled default layout from assets/default-layout*.json.
  * Returns the parsed layout object or null if not found.
  */
 export function loadDefaultLayout(assetsRoot: string): Record<string, unknown> | null {
   try {
-    const layoutPath = path.join(assetsRoot, 'assets', 'default-layout.json')
-    if (!fs.existsSync(layoutPath)) {
-      console.log('[AssetLoader] No default-layout.json found at:', layoutPath)
-      return null
+    const candidates = [
+      path.join(assetsRoot, 'assets', 'default-layout.json'),
+      path.join(assetsRoot, 'assets', 'default-layout-1.json'),
+    ]
+
+    for (const layoutPath of candidates) {
+      if (!fs.existsSync(layoutPath)) continue
+      const content = fs.readFileSync(layoutPath, 'utf-8')
+      const layout = JSON.parse(content) as Record<string, unknown>
+      console.log(`[AssetLoader] ✅ Loaded default layout (${layout.cols}×${layout.rows}) from ${path.basename(layoutPath)}`)
+      return layout
     }
-    const content = fs.readFileSync(layoutPath, 'utf-8')
-    const layout = JSON.parse(content) as Record<string, unknown>
-    console.log(`[AssetLoader] ✅ Loaded default layout (${layout.cols}×${layout.rows})`)
-    return layout
+
+    console.log('[AssetLoader] No default layout found at:', candidates.join(', '))
+    return null
   } catch (err) {
     console.error(`[AssetLoader] ❌ Error loading default layout: ${err instanceof Error ? err.message : err}`)
     return null
@@ -194,16 +200,16 @@ export interface LoadedWallTiles {
 }
 
 /**
- * Load wall tiles from walls.png (64×128, 4×4 grid of 16×32 pieces).
+ * Load wall tiles from walls/wall_0.png (64×128, 4×4 grid of 16×32 pieces).
  * Piece at bitmask M: col = M % 4, row = floor(M / 4).
  */
 export async function loadWallTiles(
   assetsRoot: string,
 ): Promise<LoadedWallTiles | null> {
   try {
-    const wallPath = path.join(assetsRoot, 'assets', 'walls.png')
+    const wallPath = path.join(assetsRoot, 'assets', 'walls', 'wall_0.png')
     if (!fs.existsSync(wallPath)) {
-      console.log('[AssetLoader] No walls.png found at:', wallPath)
+      console.log('[AssetLoader] No wall_0.png found at:', wallPath)
       return null
     }
 
@@ -262,29 +268,39 @@ export interface LoadedFloorTiles {
 }
 
 /**
- * Load floor tile patterns from floors.png (7 tiles, 16px each, horizontal strip)
+ * Load floor tile patterns from assets/floors/floor_N.png.
  */
 export async function loadFloorTiles(
   assetsRoot: string,
 ): Promise<LoadedFloorTiles | null> {
   try {
-    const floorPath = path.join(assetsRoot, 'assets', 'floors.png')
-    if (!fs.existsSync(floorPath)) {
-      console.log('[AssetLoader] No floors.png found at:', floorPath)
+    const floorDir = path.join(assetsRoot, 'assets', 'floors')
+    if (!fs.existsSync(floorDir)) {
+      console.log('[AssetLoader] No floors directory found at:', floorDir)
       return null
     }
 
-    console.log('[AssetLoader] Loading floor tiles from:', floorPath)
-    const pngBuffer = fs.readFileSync(floorPath)
-    const png = PNG.sync.read(pngBuffer)
+    const fileNames = fs.readdirSync(floorDir)
+      .filter((name) => /^floor_\d+\.png$/i.test(name))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .slice(0, FLOOR_PATTERN_COUNT)
+
+    if (fileNames.length === 0) {
+      console.log('[AssetLoader] No floor_N.png files found at:', floorDir)
+      return null
+    }
+
+    console.log('[AssetLoader] Loading floor tiles from:', floorDir)
     const sprites: string[][][] = []
-    for (let t = 0; t < FLOOR_PATTERN_COUNT; t++) {
+    for (const fileName of fileNames) {
+      const floorPath = path.join(floorDir, fileName)
+      const pngBuffer = fs.readFileSync(floorPath)
+      const png = PNG.sync.read(pngBuffer)
       const sprite: string[][] = []
       for (let y = 0; y < FLOOR_TILE_SIZE; y++) {
         const row: string[] = []
         for (let x = 0; x < FLOOR_TILE_SIZE; x++) {
-          const px = t * FLOOR_TILE_SIZE + x
-          const idx = (y * png.width + px) * 4
+          const idx = (y * png.width + x) * 4
           const r = png.data[idx]
           const g = png.data[idx + 1]
           const b = png.data[idx + 2]
