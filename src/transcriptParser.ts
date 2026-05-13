@@ -17,7 +17,7 @@ import {
 } from './timerManager.js';
 import type { AgentId, AgentState } from './types.js';
 
-export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'AskUserQuestion']);
+export const PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
 
 function isTeamTool(toolName: string): boolean {
 	return toolName.startsWith('Team');
@@ -25,7 +25,7 @@ function isTeamTool(toolName: string): boolean {
 
 function isOrchestrationTool(toolName: string | undefined): boolean {
 	if (!toolName) return false;
-	return toolName === 'Task' || isTeamTool(toolName);
+	return toolName === 'Task' || toolName === 'Agent' || isTeamTool(toolName);
 }
 
 function isPermissionExemptTool(toolName: string): boolean {
@@ -98,6 +98,7 @@ export function processTranscriptLine(
 							id: agentId,
 							toolId: block.id,
 							status,
+							toolName,
 						});
 					}
 				}
@@ -218,7 +219,7 @@ function processProgressRecord(
 		return;
 	}
 
-	// Verify parent is an active orchestration tool (Task / Team*)
+	// Verify parent is an active orchestration tool (Task / Agent / Team*)
 	if (!isOrchestrationTool(agent.activeToolNames.get(parentToolId))) return;
 
 	const msg = data.message as Record<string, unknown> | undefined;

@@ -202,4 +202,11 @@ export interface Character {
   matrixEffectSeeds: number[]
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string
+  teamName?: string
+  agentName?: string
+  isTeamLead?: boolean
+  leadAgentId?: AgentId
+  teamUsesTmux?: boolean
+  inputTokens: number
+  outputTokens: number
 }

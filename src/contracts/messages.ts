@@ -82,7 +82,7 @@ export type ExtensionToWebviewMessage =
 	| { type: 'existingAgents'; agents: string[]; agentMeta?: Record<string, ExistingAgentMeta>; folderNames?: Record<string, string> }
 	| { type: 'historySessionsLoaded'; sessions: HistorySessionSummary[] }
 	| { type: 'agentSelected'; id: string }
-	| { type: 'agentToolStart'; id: string; toolId: string; status: string }
+	| { type: 'agentToolStart'; id: string; toolId: string; status: string; toolName?: string }
 	| { type: 'agentToolDone'; id: string; toolId: string }
 	| { type: 'agentToolsClear'; id: string }
 	| { type: 'agentStatus'; id: string; status: AgentRuntimeStatus }

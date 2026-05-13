@@ -8,18 +8,60 @@ import {
 	VIEW_ID,
 } from './constants.js';
 import { PixelAgentsViewProvider } from './PixelAgentsViewProvider.js';
+import { HookEventHandler } from '../server/src/hookEventHandler.js';
+import { claudeProvider, copyHookScript } from '../server/src/providers/index.js';
+import { PixelAgentsServer } from '../server/src/server.js';
 
 let providerInstance: PixelAgentsViewProvider | undefined;
+let hookServerInstance: PixelAgentsServer | undefined;
+
+async function startHookRuntime(
+	context: vscode.ExtensionContext,
+	provider: PixelAgentsViewProvider,
+	output: vscode.OutputChannel,
+): Promise<void> {
+	const server = new PixelAgentsServer();
+	const hookHandler = new HookEventHandler(
+		provider.agents,
+		provider.waitingTimers,
+		provider.permissionTimers,
+		() => provider.getActiveWebview(),
+		claudeProvider,
+	);
+
+	server.onHookEvent((providerId, event) => {
+		hookHandler.handleEvent(providerId, event as never);
+	});
+
+	const config = await server.start();
+	copyHookScript(context.extensionPath);
+	await claudeProvider.installHooks(`http://127.0.0.1:${config.port}`, config.token);
+	hookServerInstance = server;
+	output.appendLine(`[hooks] server port=${config.port} pid=${config.pid} owner=${config.pid === process.pid}`);
+}
 
 export function activate(context: vscode.ExtensionContext) {
 	const output = vscode.window.createOutputChannel('Pixel Agents');
 	const runtimeInfo = `id=${context.extension.id} version=${context.extension.packageJSON.version} path=${context.extensionPath}`;
 	output.appendLine(`[activate] ${runtimeInfo}`);
+	console.log(`[Pixel Agents] PIXEL_AGENTS_DEBUG=${process.env.PIXEL_AGENTS_DEBUG ?? 'not set'}`);
 
 	const provider = new PixelAgentsViewProvider(context);
 	providerInstance = provider;
 
 	context.subscriptions.push(output);
+	context.subscriptions.push({
+		dispose: () => {
+			hookServerInstance?.stop();
+			hookServerInstance = undefined;
+		},
+	});
+
+	void startHookRuntime(context, provider, output).catch((error) => {
+		const message = error instanceof Error ? error.message : String(error);
+		output.appendLine(`[hooks][error] ${message}`);
+		console.error(`[Pixel Agents] Failed to start hook runtime: ${message}`);
+	});
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(VIEW_ID, provider)
@@ -68,5 +110,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
+	hookServerInstance?.stop();
+	hookServerInstance = undefined;
 	providerInstance?.dispose();
 }
