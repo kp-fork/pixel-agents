@@ -71,18 +71,28 @@ const OutErrorMessage = struct {
     message: []const u8,
 };
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+var gpa = std.heap.DebugAllocator(.{}){};
 var alloc: std.mem.Allocator = undefined;
 
-var stdout_mutex = std.Thread.Mutex{};
+var stdout_locked = std.atomic.Value(bool).init(false);
 var output_thread: ?std.Thread = null;
 var stop_output = std.atomic.Value(bool).init(false);
 var master_fd: ?std.posix.fd_t = null;
 var child_pid: ?std.posix.pid_t = null;
 
+fn lockStdout() void {
+    while (stdout_locked.cmpxchgWeak(false, true, .acquire, .monotonic) != null) {
+        std.Thread.yield() catch {};
+    }
+}
+
+fn unlockStdout() void {
+    stdout_locked.store(false, .release);
+}
+
 fn sendJson(value: anytype) !void {
-    stdout_mutex.lock();
-    defer stdout_mutex.unlock();
+    lockStdout();
+    defer unlockStdout();
     const json_text = try std.fmt.allocPrint(alloc, "{f}\n", .{std.json.fmt(value, .{})});
     defer alloc.free(json_text);
     try writeAll(std.posix.STDOUT_FILENO, json_text);
@@ -124,7 +134,7 @@ fn outputLoop() void {
     defer {
         sendExit(local_exit_code, local_signal);
         if (master_fd) |fd| {
-            std.posix.close(fd);
+            _ = c.close(@intCast(fd));
             master_fd = null;
         }
         child_pid = null;
@@ -166,7 +176,7 @@ fn shutdownSession() void {
     }
 
     if (master_fd) |fd| {
-        std.posix.close(fd);
+        _ = c.close(@intCast(fd));
         master_fd = null;
     }
 
@@ -181,9 +191,18 @@ fn shutdownSession() void {
 fn writeAll(fd: std.posix.fd_t, data: []const u8) !void {
     var start: usize = 0;
     while (start < data.len) {
-        const written = try std.posix.write(fd, data[start..]);
-        if (written == 0) return error.WriteFailed;
-        start += written;
+        const count = @min(data.len - start, std.math.maxInt(i32));
+        const rc = std.posix.system.write(fd, data[start..].ptr, count);
+        switch (std.posix.errno(rc)) {
+            .SUCCESS => {
+                const written: usize = @intCast(rc);
+                if (written == 0) return error.WriteFailed;
+                start += written;
+            },
+            .INTR => continue,
+            .AGAIN => return error.WouldBlock,
+            else => return error.WriteFailed,
+        }
     }
 }
 
@@ -258,11 +277,11 @@ fn handleResize(payload: ResizePayload) void {
 }
 
 pub fn main() !void {
-    alloc = gpa.allocator();
     defer {
         shutdownSession();
         _ = gpa.deinit();
     }
+    alloc = gpa.allocator();
 
     var input_accumulator = std.ArrayList(u8).empty;
     defer input_accumulator.deinit(alloc);
